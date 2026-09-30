@@ -1,0 +1,280 @@
+@page "/app/configuracoes"
+@inject ContaService ContaSvc
+@inject ConfiguracaoAgendaService Config
+@inject NavigationManager Nav
+
+<PageTitle>Configurações · Alento</PageTitle>
+
+<div class="cabecalho">
+    <div>
+        <h1>Configurações</h1>
+        <p>Seu perfil público, serviços, horários de atendimento e bloqueios.</p>
+    </div>
+</div>
+
+<MudTabs @bind-ActivePanelIndex="aba" Elevation="0" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pt-4" Color="Color.Transparent" SliderColor="Color.Primary">
+    <MudTabPanel Text="Perfil e link">
+        @if (perfil is not null)
+        {
+            <div class="grade-2">
+                <div class="bloco">
+                    <h2>Perfil profissional</h2>
+                    <MudStack Spacing="2">
+                        <MudTextField @bind-Value="perfil.Nome" Label="Nome profissional" Variant="Variant.Outlined" HelperText="Aparece no link e nos lembretes." />
+                        <MudTextField @bind-Value="perfil.Crp" Label="CRP" Variant="Variant.Outlined" />
+                        <MudTextField @bind-Value="perfil.Slug" Label="Endereço do seu link" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentText="@($"{Nav.BaseUri.Replace("https://", "").Replace("http://", "")}")" HelperText="Letras minúsculas, números e hífen." />
+                        <MudTextField @bind-Value="perfil.Bio" Label="Apresentação curta (opcional)" Variant="Variant.Outlined" Lines="3" MaxLength="600" HelperText="Ex.: abordagem, público atendido, local de atendimento." />
+                        <MudTextField @bind-Value="perfil.WhatsApp" Label="Seu WhatsApp" Variant="Variant.Outlined" HelperText="Mostrado ao paciente quando a agenda online estiver pausada." />
+                        <MudSelect @bind-Value="perfil.FusoHorario" Label="Fuso horário" Variant="Variant.Outlined">
+                            @foreach (var (id, nome) in Fusos)
+                            {
+                                <MudSelectItem Value="id">@nome</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudStack>
+                </div>
+                <div>
+                    <div class="bloco">
+                        <h2>Recebimento por Pix</h2>
+                        <MudStack Spacing="2">
+                            <MudTextField @bind-Value="perfil.ChavePix" Label="Sua chave Pix" Variant="Variant.Outlined" HelperText="CPF, CNPJ, e-mail, chave aleatória ou celular no formato +5511912345678." />
+                            <MudTextField @bind-Value="perfil.CidadePix" Label="Cidade (aparece no Pix)" Variant="Variant.Outlined" MaxLength="15" />
+                        </MudStack>
+                    </div>
+                    <div class="bloco">
+                        <h2>Regras do agendamento online</h2>
+                        <MudStack Spacing="2">
+                            <MudNumericField @bind-Value="perfil.IntervaloEntreSessoesMinutos" Label="Intervalo entre sessões (min)" Variant="Variant.Outlined" Min="0" Max="120" />
+                            <MudNumericField @bind-Value="perfil.AntecedenciaMinimaHoras" Label="Antecedência mínima para o paciente marcar (horas)" Variant="Variant.Outlined" Min="0" Max="168" />
+                            <MudNumericField @bind-Value="perfil.JanelaAgendamentoDias" Label="Mostrar horários para os próximos (dias)" Variant="Variant.Outlined" Min="7" Max="90" />
+                        </MudStack>
+                    </div>
+                </div>
+            </div>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="SalvarPerfil" Disabled="!Conta.PodeEditar" Size="Size.Large">Salvar alterações</MudButton>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Serviços">
+        <div class="bloco">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                <h2 style="margin:0">Tipos de sessão</h2>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="() => editandoServico = new Servico()" Disabled="!Conta.PodeEditar">Novo serviço</MudButton>
+            </div>
+            @if (editandoServico is not null)
+            {
+                <MudPaper Outlined="true" Class="pa-4 my-3">
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="editandoServico.Nome" Label="Nome" Variant="Variant.Outlined" /></MudItem>
+                        <MudItem xs="6" sm="3"><MudNumericField @bind-Value="editandoServico.DuracaoMinutos" Label="Duração (min)" Variant="Variant.Outlined" Min="10" Max="480" /></MudItem>
+                        <MudItem xs="6" sm="3"><MudNumericField @bind-Value="editandoServico.Valor" Label="Valor" Variant="Variant.Outlined" Min="0" Format="N2" Culture="Fuso.PtBr" Adornment="Adornment.Start" AdornmentText="R$" /></MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect @bind-Value="editandoServico.Modalidade" Label="Modalidade" Variant="Variant.Outlined">
+                                <MudSelectItem Value="Modalidade.Presencial">Presencial</MudSelectItem>
+                                <MudSelectItem Value="Modalidade.Online">Online</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4"><MudSwitch @bind-Value="editandoServico.VisivelNoLinkPublico" Color="Color.Primary" Label="Aparece no link público" /></MudItem>
+                        <MudItem xs="12" sm="4"><MudSwitch @bind-Value="editandoServico.Ativo" Color="Color.Primary" Label="Ativo" /></MudItem>
+                    </MudGrid>
+                    <MudStack Row="true" Class="mt-2" Spacing="1">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="SalvarServico">Salvar serviço</MudButton>
+                        <MudButton OnClick="() => editandoServico = null">Cancelar</MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+            @foreach (var s in servicos)
+            {
+                <div class="sessao-item" @onclick="() => editandoServico = Copia(s)">
+                    <MudIcon Icon="@(s.Modalidade == Modalidade.Online ? Icons.Material.Outlined.Videocam : Icons.Material.Outlined.Chair)" Color="Color.Primary" />
+                    <div class="sessao-info">
+                        <b>@s.Nome</b>
+                        <small>@s.DuracaoMinutos min · @Texto.Moeda(s.Valor)@(s.VisivelNoLinkPublico ? " · no link público" : " · só interno")</small>
+                    </div>
+                    @if (!s.Ativo)
+                    {
+                        <span class="status cancelado">inativo</span>
+                    }
+                    <MudIcon Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" />
+                </div>
+            }
+        </div>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Horários de atendimento">
+        <div class="bloco">
+            <h2>Quando você atende</h2>
+            <p style="color:var(--suave);margin-top:0">O link público só mostra horários dentro destes intervalos, descontando sessões e bloqueios.</p>
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Class="mb-3">
+                <MudSelect @bind-Value="novaDisp.DiaDaSemana" Label="Dia" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:170px">
+                    @foreach (var d in DiasSemana)
+                    {
+                        <MudSelectItem Value="d">@Fuso.DiaSemana(d)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudTimePicker @bind-Time="novaDispInicio" Label="Das" Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" MinuteSelectionStep="5" Style="max-width:120px" />
+                <MudTimePicker @bind-Time="novaDispFim" Label="Até" Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" MinuteSelectionStep="5" Style="max-width:120px" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="AdicionarDisp" Disabled="!Conta.PodeEditar">Adicionar</MudButton>
+            </MudStack>
+            @foreach (var grupo in disponibilidades.GroupBy(d => d.DiaDaSemana))
+            {
+                <div class="sessao-item" style="cursor:default">
+                    <div style="min-width:120px;font-weight:700;text-transform:capitalize">@Fuso.DiaSemana(grupo.Key)</div>
+                    <div class="sessao-info" style="display:flex;flex-wrap:wrap;gap:6px">
+                        @foreach (var d in grupo)
+                        {
+                            <MudChip T="string" OnClose="@(_ => RemoverDisp(d.Id))" Color="Color.Primary" Variant="Variant.Outlined">@d.Inicio.ToString("HH:mm")–@d.Fim.ToString("HH:mm")</MudChip>
+                        }
+                    </div>
+                </div>
+            }
+            @if (disponibilidades.Count == 0)
+            {
+                <div class="vazio"><p>Nenhum horário cadastrado: seu link público não mostrará horários.</p></div>
+            }
+        </div>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Férias e bloqueios">
+        <div class="bloco">
+            <h2>Bloqueios de agenda</h2>
+            <p style="color:var(--suave);margin-top:0">Férias, feriados, congressos. Nesses períodos o link não mostra horários e as sessões semanais são puladas.</p>
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Class="mb-3">
+                <MudDateRangePicker @bind-DateRange="periodoBloqueio" Label="Período" Variant="Variant.Outlined" Margin="Margin.Dense" Culture="Fuso.PtBr" DateFormat="dd/MM/yyyy" Style="min-width:260px" />
+                <MudTextField @bind-Value="motivoBloqueio" Label="Motivo" Placeholder="Férias" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="AdicionarBloqueio" Disabled="!Conta.PodeEditar">Bloquear</MudButton>
+            </MudStack>
+            @foreach (var b in bloqueios)
+            {
+                <div class="sessao-item" style="cursor:default">
+                    <MudIcon Icon="@Icons.Material.Outlined.EventBusy" Color="Color.Secondary" />
+                    <div class="sessao-info">
+                        <b>@(string.IsNullOrWhiteSpace(b.Motivo) ? "Bloqueio" : b.Motivo)</b>
+                        <small>@Conta.Local(b.Inicio).ToString("dd/MM/yyyy HH:mm") até @Conta.Local(b.Fim).ToString("dd/MM/yyyy HH:mm")</small>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Outlined.Delete" OnClick="() => RemoverBloqueio(b.Id)" aria-label="Remover bloqueio" Disabled="!Conta.PodeEditar" />
+                </div>
+            }
+            @if (bloqueios.Count == 0)
+            {
+                <div class="vazio"><p>Nenhum bloqueio futuro.</p></div>
+            }
+        </div>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    [SupplyParameterFromQuery(Name = "aba")] public string? AbaQuery { get; set; }
+
+    private int aba;
+    private Tenant? perfil;
+    private List<Servico> servicos = [];
+    private Servico? editandoServico;
+    private List<Disponibilidade> disponibilidades = [];
+    private Disponibilidade novaDisp = new() { DiaDaSemana = DayOfWeek.Monday };
+    private TimeSpan? novaDispInicio = new(8, 0, 0);
+    private TimeSpan? novaDispFim = new(12, 0, 0);
+    private List<Bloqueio> bloqueios = [];
+    private DateRange? periodoBloqueio;
+    private string motivoBloqueio = "Férias";
+
+    private static readonly DayOfWeek[] DiasSemana =
+        [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
+
+    private static readonly (string id, string nome)[] Fusos =
+    [
+        ("America/Sao_Paulo", "Brasília (SP, RJ, MG, Sul, NE…)"),
+        ("America/Manaus", "Amazonas (-4h)"),
+        ("America/Cuiaba", "Mato Grosso (-4h)"),
+        ("America/Campo_Grande", "Mato Grosso do Sul (-4h)"),
+        ("America/Porto_Velho", "Rondônia (-4h)"),
+        ("America/Boa_Vista", "Roraima (-4h)"),
+        ("America/Rio_Branco", "Acre (-5h)"),
+        ("America/Belem", "Pará / Amapá (-3h)"),
+        ("America/Fortaleza", "Fortaleza (-3h)"),
+        ("America/Recife", "Recife (-3h)"),
+        ("America/Noronha", "Fernando de Noronha (-2h)"),
+        ("Europe/Lisbon", "Lisboa")
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        aba = AbaQuery switch { "servicos" => 1, "horarios" => 2, "bloqueios" => 3, _ => 0 };
+        perfil = await ContaSvc.AtualAsync();
+        await CarregarListas();
+    }
+
+    private async Task CarregarListas()
+    {
+        servicos = await Config.ServicosAsync();
+        disponibilidades = await Config.DisponibilidadesAsync();
+        bloqueios = await Config.BloqueiosFuturosAsync();
+    }
+
+    private async Task SalvarPerfil()
+    {
+        if (perfil is null) return;
+        if (await Executar(() => ContaSvc.SalvarPerfilAsync(perfil), "Configurações salvas."))
+        {
+            perfil = await ContaSvc.AtualAsync();
+            await Conta.Recarregar();
+        }
+    }
+
+    private static Servico Copia(Servico s) => new()
+    {
+        Id = s.Id, Nome = s.Nome, DuracaoMinutos = s.DuracaoMinutos, Valor = s.Valor,
+        Modalidade = s.Modalidade, Ativo = s.Ativo, VisivelNoLinkPublico = s.VisivelNoLinkPublico
+    };
+
+    private async Task SalvarServico()
+    {
+        if (editandoServico is null) return;
+        if (await Executar(() => Config.SalvarServicoAsync(editandoServico), "Serviço salvo."))
+        {
+            editandoServico = null;
+            await CarregarListas();
+        }
+    }
+
+    private async Task AdicionarDisp()
+    {
+        if (novaDispInicio is null || novaDispFim is null) return;
+        novaDisp.Inicio = TimeOnly.FromTimeSpan(novaDispInicio.Value);
+        novaDisp.Fim = TimeOnly.FromTimeSpan(novaDispFim.Value);
+        if (await Executar(() => Config.AdicionarDisponibilidadeAsync(novaDisp), "Horário adicionado."))
+            await CarregarListas();
+    }
+
+    private async Task RemoverDisp(Guid id)
+    {
+        if (await Executar(() => Config.RemoverDisponibilidadeAsync(id), "Horário removido."))
+            await CarregarListas();
+    }
+
+    private async Task AdicionarBloqueio()
+    {
+        if (periodoBloqueio?.Start is not { } ini || periodoBloqueio.End is not { } fim)
+        {
+            Snackbar.Add("Escolha o período.", Severity.Warning);
+            return;
+        }
+        var b = new Bloqueio
+        {
+            Inicio = Conta.Utc(ini.Date),
+            Fim = Conta.Utc(fim.Date.AddDays(1)),
+            Motivo = motivoBloqueio
+        };
+        if (await Executar(() => Config.AdicionarBloqueioAsync(b), "Período bloqueado."))
+        {
+            periodoBloqueio = null;
+            await CarregarListas();
+        }
+    }
+
+    private async Task RemoverBloqueio(Guid id)
+    {
+        if (await Executar(() => Config.RemoverBloqueioAsync(id), "Bloqueio removido."))
+            await CarregarListas();
+    }
+}

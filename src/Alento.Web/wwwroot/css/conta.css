@@ -1,0 +1,42 @@
+/* Telas de conta (login, cadastro, segurança). Bootstrap fica só para as páginas geradas do Identity. */
+body.area-conta { background: radial-gradient(1000px 500px at 100% 0%, rgba(31, 77, 69, .10), transparent), var(--creme); font-family: var(--fonte); }
+.conta { min-height: 100vh; display: flex; flex-direction: column; }
+.conta-topo { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; max-width: 1160px; width: 100%; margin: 0 auto; }
+.conta-corpo { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 16px 16px 64px; }
+.conta-cartao { width: 100%; max-width: 480px; background: var(--branco); border-radius: var(--raio-lg); box-shadow: var(--sombra-lg); padding: 36px; }
+.conta-cartao.largo { max-width: 960px; }
+.conta-cartao h1 { font-size: 1.9rem; margin-bottom: .3rem; }
+.conta-cartao h2 { font-size: 1.35rem; }
+.conta-cartao h3 { font-size: 1.1rem; }
+.conta-sub { color: var(--suave); margin-bottom: 24px; }
+.conta-sub a, .conta-cartao a { color: var(--verde); font-weight: 600; }
+.campo-duplo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.opcional { font-weight: 400; color: var(--suave); }
+.linha-entre { display: flex; justify-content: space-between; align-items: center; margin: 4px 0 18px; font-size: .92rem; }
+.ou { display: flex; align-items: center; gap: 12px; color: var(--suave); font-size: .85rem; margin: 18px 0; }
+.ou::before, .ou::after { content: ""; flex: 1; height: 1px; background: var(--linha); }
+.bloco-sec { width: 100%; justify-content: center; }
+.conta-rodape-form { font-size: .85rem; color: var(--suave); text-align: center; margin: 14px 0 0; }
+.conta-split { display: grid; grid-template-columns: 1fr 480px; gap: 48px; max-width: 1040px; width: 100%; align-items: center; }
+.conta-beneficios h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); }
+.conta-beneficios .lista-check { margin: 24px 0; }
+.conta-garantia { background: var(--branco); border: 1px dashed var(--verde-700); border-radius: 14px; padding: 16px 18px; font-size: .95rem; color: var(--suave); }
+.conta-garantia b { color: var(--verde-900); }
+@media (max-width: 900px) {
+    .conta-split { grid-template-columns: 1fr; gap: 24px; }
+    .conta-beneficios { order: 2; }
+    .conta-beneficios .lista-check { margin: 16px 0; }
+}
+@media (max-width: 520px) {
+    .conta-cartao { padding: 26px 20px; }
+    .campo-duplo { grid-template-columns: 1fr; gap: 0; }
+}
+
+/* Ajustes para as páginas padrão do Identity (bootstrap) */
+.area-conta .btn-primary { background: var(--verde); border-color: var(--verde); border-radius: 12px; font-weight: 700; }
+.area-conta .btn-primary:hover { background: var(--verde-900); border-color: var(--verde-900); }
+.area-conta .form-control { border-radius: 12px; }
+.area-conta .nav-pills .nav-link { color: var(--verde); border-radius: 10px; }
+.area-conta .nav-pills .nav-link.active { background: var(--verde); color: #fff; }
+.area-conta .text-danger { color: var(--erro) !important; }
+.area-conta h1:not(.conta-cartao h1) { font-size: 1.8rem; }

@@ -1,0 +1,14 @@
+<span class="status @Status.ToString().ToLowerInvariant()">@Rotulo(Status)</span>
+
+@code {
+    [Parameter] public StatusAgendamento Status { get; set; }
+
+    public static string Rotulo(StatusAgendamento s) => s switch
+    {
+        StatusAgendamento.Agendado => "Agendada",
+        StatusAgendamento.Confirmado => "✓ Confirmada",
+        StatusAgendamento.Realizado => "Realizada",
+        StatusAgendamento.Faltou => "Faltou",
+        _ => "Cancelada"
+    };
+}

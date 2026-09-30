@@ -1,0 +1,8 @@
+@if (Status is { } s)
+{
+    <span class="status @s.ToString().ToLowerInvariant()">@(s switch { StatusCobranca.Paga => "Pago", StatusCobranca.Pendente => "A receber", _ => "Cancelada" })</span>
+}
+
+@code {
+    [Parameter] public StatusCobranca? Status { get; set; }
+}

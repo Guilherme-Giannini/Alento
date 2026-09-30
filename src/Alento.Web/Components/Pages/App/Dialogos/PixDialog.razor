@@ -1,0 +1,60 @@
+@using MudBlazor
+@using Alento.Web.Modules.Cobrancas
+@using Alento.Web.Modules.Contas
+@inject CobrancaService Cobrancas
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (erro is not null)
+        {
+            <MudAlert Severity="Severity.Warning">@erro</MudAlert>
+            <MudButton Href="/app/configuracoes" Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" DropShadow="false">Cadastrar chave Pix</MudButton>
+        }
+        else if (pix is null)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else
+        {
+            <div style="text-align:center">
+                <MudText Typo="Typo.h5">@Texto.Moeda(pix.Valor)</MudText>
+                <img src="@pix.QrCodeDataUri" alt="QR Code Pix" style="width:220px;height:220px;margin:12px auto" />
+            </div>
+            <MudText Typo="Typo.caption">Pix copia e cola</MudText>
+            <div class="pix-box">@pix.CopiaECola</div>
+            <MudStack Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" StartIcon="@Icons.Custom.Brands.WhatsApp" Href="@LinkWhatsApp" Target="_blank">Enviar para o paciente no WhatsApp</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="Copiar">Copiar código Pix</MudButton>
+            </MudStack>
+            <MudText Typo="Typo.caption" Class="mt-2" Style="display:block;color:var(--suave)">O valor cai direto na sua conta. Depois, marque como pago.</MudText>
+        }
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid CobrancaId { get; set; }
+    [Parameter] public string NomePaciente { get; set; } = "";
+    [Parameter] public string WhatsApp { get; set; } = "";
+    [Parameter] public DateTime SessaoLocal { get; set; }
+    [Parameter] public string NomePsicologo { get; set; } = "";
+
+    private PixGerado? pix;
+    private string? erro;
+
+    private string LinkWhatsApp => pix is null ? "#" :
+        $"https://wa.me/{WhatsApp}?text={Uri.EscapeDataString(CobrancaService.MensagemWhatsApp(NomePaciente, NomePsicologo, pix.Valor, SessaoLocal, pix.CopiaECola))}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { pix = await Cobrancas.PixAsync(CobrancaId); }
+        catch (RegraNegocioException ex) { erro = ex.Message; }
+    }
+
+    private async Task Copiar()
+    {
+        if (pix is not null && await JS.InvokeAsync<bool>("alento.copiar", pix.CopiaECola))
+            Snackbar.Add("Código Pix copiado!", Severity.Success);
+    }
+}

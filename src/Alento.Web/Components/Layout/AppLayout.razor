@@ -1,0 +1,172 @@
+@inherits LayoutComponentBase
+@using Alento.Web.Modules.Contas
+@implements IDisposable
+@inject ContaService Conta
+@inject NavigationManager Nav
+
+<MudThemeProvider Theme="Tema" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Class="barra-topo">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="() => menuAberto = !menuAberto" aria-label="Abrir menu" />
+        <a href="/app" class="marca"><Logo Class="marca-logo" /> Alento</a>
+        <MudSpacer />
+        @if (conta is not null && conta.Nivel == NivelAcesso.Total && conta.Tenant.StatusAssinatura == StatusAssinatura.Teste)
+        {
+            <MudButton Href="/app/assinatura" Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small" Class="btn-assinar-topo" DropShadow="false">
+                Assinar · R$ 79/mês
+            </MudButton>
+        }
+        <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" aria-label="Conta">
+            <MudMenuItem Disabled="true">@conta?.Tenant.Nome</MudMenuItem>
+            <MudMenuItem Href="/Account/Manage" ForceLoad="true" Icon="@Icons.Material.Outlined.Lock">Segurança da conta</MudMenuItem>
+            <MudMenuItem Href="/app/assinatura" Icon="@Icons.Material.Outlined.CreditCard">Assinatura</MudMenuItem>
+            <MudMenuItem OnClick="Sair" Icon="@Icons.Material.Outlined.Logout">Sair</MudMenuItem>
+        </MudMenu>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="menuAberto" ClipMode="DrawerClipMode.Always" Variant="DrawerVariant.Responsive" Elevation="0" Class="menu-lateral">
+        <MudNavMenu Color="Color.Primary" Class="pt-3">
+            <MudNavLink Href="/app" Match="NavLinkMatch.All" Icon="@Icons.Material.Outlined.SpaceDashboard">Início</MudNavLink>
+            <MudNavLink Href="/app/agenda" Icon="@Icons.Material.Outlined.CalendarMonth">Agenda</MudNavLink>
+            <MudNavLink Href="/app/pacientes" Icon="@Icons.Material.Outlined.People">Pacientes</MudNavLink>
+            <MudNavLink Href="/app/cobrancas" Icon="@Icons.Material.Outlined.Payments">Cobranças</MudNavLink>
+            <MudNavLink Href="/app/configuracoes" Icon="@Icons.Material.Outlined.Tune">Configurações</MudNavLink>
+            <MudNavLink Href="/app/privacidade" Icon="@Icons.Material.Outlined.Shield">Privacidade (LGPD)</MudNavLink>
+            <MudNavLink Href="/app/assinatura" Icon="@Icons.Material.Outlined.WorkspacePremium">Assinatura</MudNavLink>
+        </MudNavMenu>
+        <form id="form-sair" method="post" action="Account/Logout" style="display:none">
+            <AntiforgeryToken />
+            <input type="hidden" name="ReturnUrl" value="" />
+        </form>
+        @if (conta is not null)
+        {
+            <div class="menu-link-publico">
+                <div class="rotulo">Seu link de agendamento</div>
+                <a href="/@conta.Tenant.Slug" target="_blank">/@conta.Tenant.Slug ↗</a>
+            </div>
+        }
+    </MudDrawer>
+
+    <MudMainContent>
+        @if (conta is not null)
+        {
+            @if (conta.Nivel == NivelAcesso.Total && conta.Tenant.StatusAssinatura == StatusAssinatura.Teste)
+            {
+                <div class="faixa-teste @(conta.DiasRestantes <= 2 ? "urgente" : "")">
+                    <span>
+                        @if (conta.DiasRestantes <= 1)
+                        {
+                            <b>Seu teste termina hoje.</b>
+                        }
+                        else
+                        {
+                            <b>Faltam @conta.DiasRestantes dias de teste grátis.</b>
+                        }
+                        Assine agora e só pague quando o teste acabar.
+                    </span>
+                    <a href="/app/assinatura">Garantir meu acesso →</a>
+                </div>
+            }
+            else if (conta.Nivel == NivelAcesso.SomenteLeitura)
+            {
+                <div class="faixa-teste urgente">
+                    <span><b>Conta em modo somente leitura.</b> Seus registros estão guardados e podem ser exportados.</span>
+                    <a href="/app/assinatura">Reativar →</a>
+                </div>
+            }
+
+            <CascadingValue Value="conta" IsFixed="false">
+                <div class="conteudo">
+                    @if (conta.Nivel == NivelAcesso.Bloqueado && !PaginaLiberadaQuandoBloqueado)
+                    {
+                        <Paywall Conta="conta" />
+                    }
+                    else
+                    {
+                        @Body
+                    }
+                </div>
+            </CascadingValue>
+        }
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private ContaAtual? conta;
+    private bool menuAberto = true;
+
+    private bool PaginaLiberadaQuandoBloqueado
+    {
+        get
+        {
+            var caminho = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0];
+            return caminho is "app/assinatura" or "app/privacidade";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += AoNavegar;
+        await Recarregar();
+    }
+
+    private async Task Recarregar()
+    {
+        var t = await Conta.AtualAsync();
+        var agora = DateTime.UtcNow;
+        conta = new ContaAtual(t, RegrasAcesso.Calcular(t, agora), RegrasAcesso.DiasRestantesTeste(t, agora), Recarregar);
+        StateHasChanged();
+    }
+
+    // Recarrega o status a cada navegação: o webhook do Asaas pode ter liberado ou bloqueado a conta.
+    private async void AoNavegar(object? sender, LocationChangedEventArgs e)
+    {
+        try { await InvokeAsync(Recarregar); }
+        catch (ObjectDisposedException) { }
+    }
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private async Task Sair() => await JS.InvokeVoidAsync("alento.sair");
+
+    public void Dispose() => Nav.LocationChanged -= AoNavegar;
+
+    private static readonly MudTheme Tema = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#1f4d45",
+            PrimaryDarken = "#12302b",
+            Secondary = "#c8532c",
+            Tertiary = "#f2b33d",
+            Success = "#1e8a5a",
+            Error = "#b3261e",
+            Warning = "#b7791f",
+            Info = "#2f6fae",
+            Background = "#f8f5ef",
+            Surface = "#ffffff",
+            AppbarBackground = "#ffffff",
+            AppbarText = "#12302b",
+            DrawerBackground = "#ffffff",
+            DrawerText = "#1b1f1e",
+            TextPrimary = "#1b1f1e",
+            TextSecondary = "#56625f",
+            LinesDefault = "#e4ded3",
+            TableLines = "#ece7de",
+            ActionDefault = "#56625f"
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = ["Inter", "system-ui", "sans-serif"] },
+            H4 = new H4Typography { FontFamily = ["Fraunces", "Georgia", "serif"], FontWeight = "600" },
+            H5 = new H5Typography { FontFamily = ["Fraunces", "Georgia", "serif"], FontWeight = "600" },
+            H6 = new H6Typography { FontFamily = ["Inter", "system-ui", "sans-serif"], FontWeight = "700" },
+            Button = new ButtonTypography { FontFamily = ["Inter", "system-ui", "sans-serif"], FontWeight = "600", TextTransform = "none" }
+        },
+        LayoutProperties = new LayoutProperties { DefaultBorderRadius = "12px", DrawerWidthLeft = "248px" }
+    };
+}

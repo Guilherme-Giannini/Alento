@@ -1,0 +1,148 @@
+@page "/app/assinatura"
+@using Alento.Web.Modules.Assinaturas
+@inject AssinaturaService AssinaturaSvc
+@inject AuthenticationStateProvider Auth
+@inject NavigationManager Nav
+
+<PageTitle>Assinatura · Alento</PageTitle>
+
+<div class="cabecalho">
+    <div>
+        <h1>Assinatura</h1>
+        <p>@DescricaoStatus</p>
+    </div>
+</div>
+
+@if (Sucesso || Conta.Tenant.StatusAssinatura == StatusAssinatura.Ativa)
+{
+    <MudAlert Severity="Severity.Success" Class="mb-4">
+        <b>Assinatura ativa.</b> Obrigado por confiar no Alento!
+        @if (assinatura?.ProximoVencimento is { } venc)
+        {
+            <span>Próximo vencimento: @venc.ToString("dd/MM/yyyy").</span>
+        }
+    </MudAlert>
+}
+
+<div class="grade-2">
+    <div class="plano-painel">
+        <MudText Typo="Typo.overline" Color="Color.Secondary">@PlanoAlento.Nome</MudText>
+        <div class="preco">R$ 79<small>/mês</small></div>
+        <MudText Typo="Typo.body2" Style="color:var(--suave)">Menos que uma sessão. Uma falta evitada já paga o mês.</MudText>
+        <ul class="lista-ok">
+            <li>Lembretes no WhatsApp com Confirmar/Remarcar, sem custo extra</li>
+            <li>Link de agendamento ilimitado</li>
+            <li>Pix por sessão com a sua chave</li>
+            <li>Pacientes, recorrências, painel financeiro</li>
+            <li>Sem fidelidade: cancele com 1 clique</li>
+        </ul>
+
+        @if (Conta.Tenant.StatusAssinatura != StatusAssinatura.Ativa)
+        {
+            @if (assinatura?.UrlUltimaFatura is { } url && Conta.Tenant.StatusAssinatura == StatusAssinatura.Inadimplente)
+            {
+                <MudButton Href="@url" Target="_blank" Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large" FullWidth="true" DropShadow="false" Class="mb-3">Pagar fatura em aberto</MudButton>
+            }
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Dados para a nota e cobrança</MudText>
+            <MudStack Spacing="2">
+                <MudTextField @bind-Value="nomeCompleto" Label="Nome completo ou razão social" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="documento" Label="CPF ou CNPJ" Variant="Variant.Outlined" Margin="Margin.Dense" InputMode="InputMode.numeric" />
+                <MudTextField @bind-Value="celular" Label="Celular (opcional)" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Telephone" />
+            </MudStack>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large" FullWidth="true" DropShadow="false" Class="mt-3 py-3" OnClick="Assinar" Disabled="processando">
+                @if (processando)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                @(EmTeste ? "Assinar agora · 1ª cobrança no fim do teste" : "Assinar por R$ 79/mês")
+            </MudButton>
+            <MudText Typo="Typo.caption" Style="display:block;text-align:center;color:var(--suave)" Class="mt-2">
+                Pagamento seguro via Asaas · Pix, cartão ou boleto
+            </MudText>
+        }
+    </div>
+
+    <div>
+        <div class="bloco">
+            <h2>Por que assinar agora?</h2>
+            <MudStack Spacing="2">
+                <div><b>🔔 Os lembretes não param.</b> <span style="color:var(--suave)">Sem assinatura ativa, pacientes deixam de receber o lembrete de 24h, e as faltas voltam.</span></div>
+                <div><b>🔗 Seu link continua no ar.</b> <span style="color:var(--suave)">Quem clicar no link da sua bio continua conseguindo marcar.</span></div>
+                <div><b>🎁 Você não perde dias grátis.</b> <span style="color:var(--suave)">Assinando durante o teste, a primeira cobrança só acontece quando ele termina.</span></div>
+            </MudStack>
+        </div>
+
+        @if (Conta.Tenant.StatusAssinatura is StatusAssinatura.Ativa or StatusAssinatura.Inadimplente)
+        {
+            <div class="bloco">
+                <h2>Cancelar assinatura</h2>
+                <p style="color:var(--suave);margin-top:0">Sem multa. Sua conta fica em modo somente leitura: você continua consultando e exportando seus registros, como exige a Resolução CFP 001/2009.</p>
+                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="Cancelar">Cancelar assinatura</MudButton>
+            </div>
+        }
+        else if (Conta.Tenant.StatusAssinatura == StatusAssinatura.Cancelada)
+        {
+            <div class="bloco">
+                <h2>Seus dados</h2>
+                <p style="color:var(--suave);margin-top:0">Exporte todos os seus registros a qualquer momento.</p>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Download" Href="/app/exportar/tudo" Target="_blank">Exportar tudo (JSON)</MudButton>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "sucesso")] public bool Sucesso { get; set; }
+
+    private Alento.Web.Data.Assinatura? assinatura;
+    private string nomeCompleto = "";
+    private string documento = "";
+    private string? celular;
+    private bool processando;
+
+    private bool EmTeste => Conta.Tenant.StatusAssinatura == StatusAssinatura.Teste && Conta.DiasRestantes > 0;
+
+    private string DescricaoStatus => Conta.Tenant.StatusAssinatura switch
+    {
+        StatusAssinatura.Teste when Conta.DiasRestantes > 0 => $"Você está no teste grátis: faltam {Conta.DiasRestantes} dia(s).",
+        StatusAssinatura.Teste => "Seu teste grátis terminou.",
+        StatusAssinatura.Ativa => "Sua assinatura está ativa.",
+        StatusAssinatura.Inadimplente => "Há um pagamento pendente.",
+        _ => "Sua assinatura foi cancelada. A conta está em modo somente leitura."
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        assinatura = await AssinaturaSvc.AtualAsync();
+        nomeCompleto = Conta.Tenant.Nome;
+        celular = Texto.FormatarWhatsApp(Conta.Tenant.WhatsApp);
+        if (Sucesso) await Conta.Recarregar();
+    }
+
+    private async Task Assinar()
+    {
+        processando = true;
+        try
+        {
+            var email = (await Auth.GetAuthenticationStateAsync()).User.Identity?.Name ?? "";
+            string? url = null;
+            if (await Executar(async () => url = await AssinaturaSvc.AssinarAsync(email, new DadosCobrancaSaaS(nomeCompleto, documento, celular))) && url is not null)
+            {
+                Nav.NavigateTo(url, forceLoad: true);
+            }
+        }
+        finally { processando = false; }
+    }
+
+    private async Task Cancelar()
+    {
+        var ok = await Dialogos.ShowMessageBoxAsync("Cancelar a assinatura?",
+            (MarkupString)"Seus pacientes deixam de receber lembretes e o link de agendamento sai do ar.<br/><br/>Seus dados ficam guardados para consulta e exportação.",
+            "Cancelar assinatura", cancelText: "Manter assinatura");
+        if (ok == true && await Executar(() => AssinaturaSvc.CancelarAsync(), "Assinatura cancelada."))
+        {
+            await Conta.Recarregar();
+            assinatura = await AssinaturaSvc.AtualAsync();
+        }
+    }
+}

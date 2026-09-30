@@ -1,0 +1,133 @@
+/* Alento · painel do psicólogo (complementa o MudBlazor) */
+:root {
+    --verde: #1f4d45;
+    --verde-900: #12302b;
+    --verde-100: #e3eeea;
+    --verde-50: #f1f6f4;
+    --creme: #f8f5ef;
+    --linha: #e4ded3;
+    --suave: #56625f;
+    --cta: #c8532c;
+    --ouro: #f2b33d;
+    --ok: #1e8a5a;
+}
+body { background: var(--creme); }
+a { color: var(--verde); }
+.barra-topo { border-bottom: 1px solid var(--linha); }
+.marca { display: inline-flex; align-items: center; gap: .5rem; font: 700 1.3rem/1 "Fraunces", Georgia, serif; color: var(--verde-900); text-decoration: none; margin-left: .25rem; }
+.marca-logo { width: 30px; height: 30px; }
+.btn-assinar-topo { margin-right: .5rem; }
+@media (max-width: 600px) { .btn-assinar-topo { display: none !important; } }
+.menu-lateral { border-right: 1px solid var(--linha) !important; }
+.menu-link-publico { margin: 16px; padding: 14px; border-radius: 12px; background: var(--verde-50); font-size: .88rem; }
+.menu-link-publico .rotulo { color: var(--suave); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.menu-link-publico a { font-weight: 700; word-break: break-all; }
+.conteudo { max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; }
+@media (max-width: 600px) { .conteudo { padding: 16px 12px 64px; } }
+
+.faixa-teste { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .4rem 1.2rem; padding: 10px 16px; background: #fff6e2; color: #6b4a07; font-size: .92rem; border-bottom: 1px solid #f3dca4; text-align: center; }
+.faixa-teste a { font-weight: 700; color: var(--cta); white-space: nowrap; }
+.faixa-teste.urgente { background: #fdece6; color: #7a2c13; border-bottom-color: #f5c8b8; }
+
+.cabecalho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.cabecalho h1 { font: 600 1.9rem/1.2 "Fraunces", Georgia, serif; color: var(--verde-900); margin: 0; }
+.cabecalho p { margin: 4px 0 0; color: var(--suave); }
+
+.cartoes-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.kpi { background: #fff; border: 1px solid var(--linha); border-radius: 16px; padding: 18px 20px; }
+.kpi .rotulo { font-size: .82rem; color: var(--suave); font-weight: 600; }
+.kpi .valor { font: 700 1.8rem/1.2 "Fraunces", Georgia, serif; color: var(--verde-900); margin-top: 4px; }
+.kpi .detalhe { font-size: .82rem; color: var(--suave); margin-top: 2px; }
+.kpi.destaque { background: var(--verde); border-color: var(--verde); }
+.kpi.destaque .rotulo, .kpi.destaque .detalhe { color: #cfe3dc; }
+.kpi.destaque .valor { color: #fff; }
+@media (max-width: 960px) { .cartoes-kpi { grid-template-columns: 1fr 1fr; } }
+
+.bloco { background: #fff; border: 1px solid var(--linha); border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+.bloco h2 { font-size: 1.1rem; font-weight: 700; margin: 0 0 14px; color: #1b1f1e; }
+.grade-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+@media (max-width: 960px) { .grade-2 { grid-template-columns: 1fr; } }
+
+/* Onboarding (ativação: o que mais converte teste em assinatura) */
+.onboarding { background: linear-gradient(135deg, #fff 0%, var(--verde-50) 100%); border: 1px solid var(--verde-100); }
+.progresso { height: 8px; border-radius: 99px; background: var(--verde-100); overflow: hidden; margin: 6px 0 16px; }
+.progresso > div { height: 100%; background: var(--verde); border-radius: 99px; transition: width .4s; }
+.tarefa { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--linha); }
+.tarefa:last-child { border-bottom: 0; }
+.tarefa .marca-ok { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #cdd8d4; display: grid; place-items: center; flex: none; color: transparent; font-weight: 800; font-size: .85rem; }
+.tarefa.feita .marca-ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+.tarefa.feita .txt { color: var(--suave); text-decoration: line-through; }
+.tarefa .txt { flex: 1; }
+.tarefa .txt small { display: block; color: var(--suave); text-decoration: none; }
+
+/* Lista de sessões */
+.sessao-item { display: flex; align-items: center; gap: 14px; padding: 12px 4px; border-bottom: 1px solid #f0ebe3; cursor: pointer; border-radius: 8px; }
+.sessao-item:hover { background: var(--verde-50); }
+.sessao-item:last-child { border-bottom: 0; }
+.sessao-hora { font-weight: 700; color: var(--verde-900); min-width: 54px; }
+.sessao-info { flex: 1; min-width: 0; }
+.sessao-info b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sessao-info small { color: var(--suave); }
+
+.status { display: inline-flex; align-items: center; gap: 4px; font-size: .75rem; font-weight: 700; border-radius: 99px; padding: 2px 9px; white-space: nowrap; }
+.status.agendado { background: #eef1f6; color: #3b4a63; }
+.status.confirmado { background: #e3f5ec; color: #146c43; }
+.status.realizado { background: var(--verde-100); color: var(--verde-900); }
+.status.faltou { background: #fdecea; color: #9b1c14; }
+.status.cancelado { background: #f1efeb; color: #8a847a; text-decoration: line-through; }
+.status.pendente { background: #fff3d6; color: #7a5300; }
+.status.paga { background: #e3f5ec; color: #146c43; }
+.status.cancelada { background: #f1efeb; color: #8a847a; }
+
+/* Agenda semanal */
+.agenda-barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.agenda-barra .periodo { font-weight: 700; font-size: 1.05rem; margin: 0 8px; min-width: 190px; }
+.agenda { background: #fff; border: 1px solid var(--linha); border-radius: 16px; overflow: auto; max-height: calc(100vh - 230px); }
+.agenda-grade { display: grid; min-width: 760px; position: relative; }
+.agenda-cab { position: sticky; top: 0; z-index: 3; background: #fff; border-bottom: 1px solid var(--linha); padding: 10px 6px; text-align: center; font-size: .82rem; color: var(--suave); }
+.agenda-cab b { display: block; font: 700 1.25rem/1.1 "Fraunces", Georgia, serif; color: #1b1f1e; }
+.agenda-cab.hoje b { color: #fff; background: var(--verde); border-radius: 50%; width: 36px; height: 36px; line-height: 36px; margin: 2px auto 0; }
+.agenda-horas { position: relative; border-right: 1px solid var(--linha); }
+.agenda-hora { position: absolute; right: 6px; font-size: .72rem; color: var(--suave); transform: translateY(-50%); }
+.agenda-hora:first-child { transform: translateY(2px); }
+.agenda-coluna { position: relative; border-right: 1px solid #f0ebe3; }
+.agenda-coluna:last-child { border-right: 0; }
+.agenda-linha { position: absolute; left: 0; right: 0; border-top: 1px solid #f4f0e9; }
+.agenda-disp { position: absolute; left: 0; right: 0; background: rgba(31, 77, 69, .045); }
+.agenda-bloqueio { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(45deg, #f4efe7, #f4efe7 6px, #ebe4d8 6px, #ebe4d8 12px); font-size: .72rem; color: #7d7568; padding: 4px 6px; overflow: hidden; }
+.agenda-evento { position: absolute; left: 3px; right: 3px; border-radius: 8px; padding: 4px 7px; font-size: .78rem; line-height: 1.25; overflow: hidden; cursor: pointer; border-left: 4px solid; box-shadow: 0 1px 2px rgba(0,0,0,.06); transition: transform .1s; z-index: 2; }
+.agenda-evento:hover { transform: scale(1.02); z-index: 4; }
+.agenda-evento b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agenda-evento.agendado { background: #eef1f6; border-color: #7b8db0; color: #26324a; }
+.agenda-evento.confirmado { background: #e3f5ec; border-color: #1e8a5a; color: #0f4a2d; }
+.agenda-evento.realizado { background: var(--verde-100); border-color: var(--verde); color: var(--verde-900); }
+.agenda-evento.faltou { background: #fdecea; border-color: #b3261e; color: #7f1d17; }
+.agenda-agora { position: absolute; left: 0; right: 0; border-top: 2px solid var(--cta); z-index: 3; }
+.agenda-agora::before { content: ""; position: absolute; left: -5px; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--cta); }
+.agenda-clique { position: absolute; left: 0; right: 0; cursor: copy; }
+.agenda-clique:hover { background: rgba(200, 83, 44, .06); }
+.legenda { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: .8rem; color: var(--suave); }
+
+/* Paywall */
+.paywall { display: grid; place-items: center; padding: 40px 0; }
+.paywall-cartao { max-width: 520px; background: #fff; border-radius: 24px; border: 1px solid var(--linha); padding: 40px 32px; text-align: center; box-shadow: 0 24px 60px rgba(18, 48, 43, .12); }
+.paywall-icone { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: grid; place-items: center; background: #fff3d6; font-size: 1.6rem; }
+.paywall h1 { font: 600 1.7rem/1.2 "Fraunces", Georgia, serif; color: var(--verde-900); }
+.paywall p { color: var(--suave); }
+.paywall-numeros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 20px 0 24px; }
+.paywall-numeros div { background: var(--verde-50); border-radius: 12px; padding: 12px 6px; }
+.paywall-numeros b { display: block; font: 700 1.6rem "Fraunces", Georgia, serif; color: var(--verde-900); }
+.paywall-numeros span { font-size: .78rem; color: var(--suave); }
+.paywall-mini { font-size: .85rem; margin: 10px 0 0; }
+
+/* Assinatura */
+.plano-painel { border: 2px solid var(--verde); border-radius: 20px; padding: 28px; background: #fff; }
+.plano-painel .preco { font: 700 3rem/1 "Fraunces", Georgia, serif; color: var(--verde-900); }
+.plano-painel .preco small { font: 500 1rem "Inter", sans-serif; color: var(--suave); }
+.lista-ok { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 8px; }
+.lista-ok li::before { content: "✓"; color: var(--ok); font-weight: 800; margin-right: 8px; }
+
+.pix-box { background: var(--verde-50); border: 1px dashed var(--verde); border-radius: 12px; padding: 12px; font-family: ui-monospace, Consolas, monospace; font-size: .78rem; word-break: break-all; }
+.link-publico { display: flex; align-items: center; gap: 8px; background: var(--verde-50); border-radius: 12px; padding: 10px 14px; font-weight: 700; word-break: break-all; }
+.vazio { text-align: center; color: var(--suave); padding: 28px 12px; }
+.vazio .emoji { font-size: 2rem; }

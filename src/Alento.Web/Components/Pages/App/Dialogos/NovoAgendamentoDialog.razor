@@ -1,0 +1,191 @@
+@using MudBlazor
+@using Alento.Web.Modules.Agenda
+@using Alento.Web.Modules.Contas
+@using Alento.Web.Modules.Pacientes
+@inject AgendaService Agenda
+@inject ConfiguracaoAgendaService Config
+@inject PacienteService Pacientes
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (servicos is null || pacientes is null)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else
+        {
+            <MudStack Spacing="3">
+                @if (!novoPaciente)
+                {
+                    <MudSelect T="Guid?" Label="Paciente" @bind-Value="pacienteId" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var p in pacientes)
+                        {
+                            <MudSelectItem T="Guid?" Value="p.Id">@p.Nome</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudLink OnClick="() => novoPaciente = true" Typo="Typo.body2">+ Cadastrar novo paciente</MudLink>
+                }
+                else
+                {
+                    <MudPaper Outlined="true" Class="pa-3">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Novo paciente</MudText>
+                        <MudTextField @bind-Value="novoNome" Label="Nome" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudTextField @bind-Value="novoWhats" Label="WhatsApp com DDD" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Telephone" Class="mt-2" />
+                        <MudCheckBox @bind-Value="novoConsentimento" Label="Paciente autorizou receber lembretes no WhatsApp" Color="Color.Primary" Dense="true" />
+                        @if (pacientes.Count > 0)
+                        {
+                            <MudLink OnClick="() => novoPaciente = false" Typo="Typo.body2">Escolher paciente existente</MudLink>
+                        }
+                    </MudPaper>
+                }
+
+                <MudSelect T="Guid" Label="Tipo de sessão" Value="servicoId" ValueChanged="TrocarServico" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var s in servicos)
+                    {
+                        <MudSelectItem T="Guid" Value="s.Id">@s.Nome · @s.DuracaoMinutos min · @Texto.Moeda(s.Valor)</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudDatePicker Label="Data" Date="data" DateChanged="TrocarData" Variant="Variant.Outlined" DateFormat="dddd, dd/MM/yyyy" Culture="Fuso.PtBr" MinDate="DateTime.Today.AddDays(-30)" />
+
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Horários livres</MudText>
+                    @if (livres.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="my-1" Style="color:var(--suave)">Nenhum horário livre dentro da sua disponibilidade nesse dia. Informe um horário manual abaixo.</MudText>
+                    }
+                    else
+                    {
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">
+                            @foreach (var h in livres)
+                            {
+                                var hora = TimeOnly.FromDateTime(h.InicioLocal);
+                                <MudChip T="string" Color="@(hora == horario ? Color.Primary : Color.Default)" Variant="@(hora == horario ? Variant.Filled : Variant.Outlined)" OnClick="() => horario = hora">@hora.ToString("HH:mm")</MudChip>
+                            }
+                        </div>
+                    }
+                    <MudTimePicker Label="Ou horário manual" Time="HorarioSpan" TimeChanged="t => horario = t is null ? null : TimeOnly.FromTimeSpan(t.Value)" Variant="Variant.Outlined" AmPm="false" MinuteSelectionStep="5" Margin="Margin.Dense" />
+                </div>
+
+                @if (ServicoAtual?.Modalidade == Modalidade.Online)
+                {
+                    <MudTextField @bind-Value="linkVideo" Label="Link da videochamada (Meet, Zoom, Jitsi)" Placeholder="https://" Variant="Variant.Outlined" />
+                }
+
+                <MudSwitch @bind-Value="recorrente" Color="Color.Primary" Label="Repetir toda semana neste dia e horário" />
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" DropShadow="false" OnClick="Salvar" Disabled="salvando">
+            @(recorrente ? "Criar sessões semanais" : "Agendar")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Alento.Web.Components.Layout.ContaAtual Conta { get; set; } = default!;
+    [Parameter] public Guid? PacienteInicial { get; set; }
+    [Parameter] public DateTime? InicioLocalInicial { get; set; }
+
+    private List<Servico>? servicos;
+    private List<Paciente>? pacientes;
+    private Guid? pacienteId;
+    private Guid servicoId;
+    private DateTime? data;
+    private TimeOnly? horario;
+    private IReadOnlyList<HorarioLivre> livres = [];
+    private string? linkVideo;
+    private bool recorrente;
+    private bool salvando;
+    private bool novoPaciente;
+    private string novoNome = "";
+    private string novoWhats = "";
+    private bool novoConsentimento = true;
+
+    private Servico? ServicoAtual => servicos?.FirstOrDefault(s => s.Id == servicoId);
+    private TimeSpan? HorarioSpan => horario?.ToTimeSpan();
+
+    protected override async Task OnInitializedAsync()
+    {
+        servicos = await Config.ServicosAsync(somenteAtivos: true);
+        pacientes = await Pacientes.OpcoesAsync();
+        novoPaciente = pacientes.Count == 0;
+        pacienteId = PacienteInicial;
+        servicoId = servicos.FirstOrDefault()?.Id ?? Guid.Empty;
+        data = (InicioLocalInicial ?? Conta.Hoje.ToDateTime(TimeOnly.MinValue)).Date;
+        if (InicioLocalInicial is { } ini) horario = TimeOnly.FromDateTime(ini);
+        await CarregarLivres();
+    }
+
+    private async Task TrocarServico(Guid id)
+    {
+        servicoId = id;
+        await CarregarLivres();
+    }
+
+    private async Task TrocarData(DateTime? d)
+    {
+        data = d;
+        await CarregarLivres();
+    }
+
+    private async Task CarregarLivres()
+    {
+        if (data is null || servicoId == Guid.Empty) { livres = []; return; }
+        var dia = DateOnly.FromDateTime(data.Value);
+        livres = (await Agenda.HorariosLivresAsync(servicoId, dia, dia)).Where(h => h.InicioUtc > DateTime.UtcNow).ToList();
+    }
+
+    private async Task Salvar()
+    {
+        if (data is null || horario is null)
+        {
+            Snackbar.Add("Escolha a data e o horário.", Severity.Warning);
+            return;
+        }
+        salvando = true;
+        try
+        {
+            if (novoPaciente)
+            {
+                pacienteId = await Pacientes.SalvarAsync(new Paciente
+                {
+                    Nome = novoNome, WhatsApp = novoWhats, ConsentimentoMensagens = novoConsentimento, Ativo = true
+                });
+            }
+            if (pacienteId is null)
+            {
+                Snackbar.Add("Escolha o paciente.", Severity.Warning);
+                return;
+            }
+
+            var dia = DateOnly.FromDateTime(data.Value);
+            if (recorrente)
+            {
+                var (criadas, puladas) = await Agenda.CriarRecorrenciaAsync(new NovaRecorrencia
+                {
+                    PacienteId = pacienteId.Value, ServicoId = servicoId, DiaDaSemana = dia.DayOfWeek,
+                    Horario = horario.Value, InicioEm = dia, LinkVideo = linkVideo
+                });
+                Snackbar.Add($"{criadas} sessões semanais criadas" + (puladas > 0 ? $" ({puladas} puladas por conflito)." : "."), Severity.Success);
+            }
+            else
+            {
+                await Agenda.CriarAsync(new NovoAgendamento
+                {
+                    PacienteId = pacienteId.Value, ServicoId = servicoId,
+                    InicioUtc = Conta.Utc(dia.ToDateTime(horario.Value)), LinkVideo = linkVideo
+                });
+                Snackbar.Add("Sessão agendada. O lembrete sai 24h antes.", Severity.Success);
+            }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (RegraNegocioException ex) { Snackbar.Add(ex.Message, Severity.Warning); }
+        catch (FluentValidation.ValidationException ex) { Snackbar.Add(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct()), Severity.Warning); }
+        finally { salvando = false; }
+    }
+}

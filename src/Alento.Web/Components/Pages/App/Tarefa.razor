@@ -1,0 +1,18 @@
+@inherits ComponentBase
+
+<div class="tarefa @(Feita ? "feita" : "")">
+    <div class="marca-ok">✓</div>
+    <div class="txt">@Titulo<small>@Detalhe</small></div>
+    @if (!Feita)
+    {
+        <MudButton Href="@Href" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">@Acao</MudButton>
+    }
+</div>
+
+@code {
+    [Parameter] public bool Feita { get; set; }
+    [Parameter] public string Titulo { get; set; } = "";
+    [Parameter] public string Detalhe { get; set; } = "";
+    [Parameter] public string Acao { get; set; } = "";
+    [Parameter] public string Href { get; set; } = "";
+}

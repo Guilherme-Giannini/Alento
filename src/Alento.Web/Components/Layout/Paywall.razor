@@ -1,0 +1,47 @@
+@using MudBlazor
+@using Alento.Web.Modules.Painel
+@inject PainelService Painel
+
+@* Tela de bloqueio focada em conversão: mostra o valor já gerado e um único CTA. *@
+<div class="paywall">
+    <div class="paywall-cartao">
+        <div class="paywall-icone">⏸</div>
+        @if (Conta.Tenant.StatusAssinatura == StatusAssinatura.Inadimplente)
+        {
+            <h1>Sua assinatura está com pagamento pendente</h1>
+            <p>Os lembretes e o link de agendamento foram pausados. Regularize para voltar a usar na hora: nada foi perdido.</p>
+        }
+        else
+        {
+            <h1>Seu teste grátis terminou</h1>
+            <p>Os lembretes automáticos e seu link de agendamento foram pausados. Seus pacientes e horários continuam salvos, esperando por você.</p>
+        }
+
+        @if (resumo is not null && (resumo.SessoesRealizadas + resumo.SessoesPrevistas + resumo.LembretesEnviados) > 0)
+        {
+            <div class="paywall-numeros">
+                <div><b>@(resumo.SessoesRealizadas + resumo.SessoesPrevistas)</b><span>sessões organizadas</span></div>
+                <div><b>@resumo.LembretesEnviados</b><span>lembretes enviados</span></div>
+                <div><b>@resumo.Confirmadas</b><span>confirmações</span></div>
+            </div>
+        }
+
+        <MudButton Href="/app/assinatura" Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large" FullWidth="true" DropShadow="false" Class="py-3">
+            Reativar por R$ 79/mês
+        </MudButton>
+        <p class="paywall-mini">Pix ou cartão · sem fidelidade · cancele quando quiser</p>
+        <p class="paywall-mini"><a href="/app/exportar/tudo" target="_blank">Exportar meus dados</a> · <a href="/app/privacidade">Privacidade</a></p>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ContaAtual Conta { get; set; } = default!;
+
+    private ResumoMes? resumo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var hoje = Conta.Hoje;
+        resumo = await Painel.ResumoAsync(hoje.Year, hoje.Month, Conta.Fuso);
+    }
+}

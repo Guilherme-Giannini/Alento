@@ -1,0 +1,69 @@
+@page "/app/privacidade"
+@using Alento.Web.Modules.Auditoria
+@inject AuditoriaService AuditoriaSvc
+
+<PageTitle>Privacidade · Alento</PageTitle>
+
+<div class="cabecalho">
+    <div>
+        <h1>Privacidade e LGPD</h1>
+        <p>Você é o controlador dos dados dos seus pacientes; o Alento é o operador.</p>
+    </div>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Download" Href="/app/exportar/tudo" Target="_blank">Exportar todos os dados</MudButton>
+</div>
+
+<div class="grade-2">
+    <div class="bloco">
+        <h2>Registro de acessos (auditoria)</h2>
+        <p style="color:var(--suave);margin-top:0;font-size:.9rem">Quem visualizou, alterou, exportou ou excluiu dados de pacientes. Últimos 200 eventos.</p>
+        @if (registros.Count == 0)
+        {
+            <div class="vazio"><p>Nenhum evento ainda.</p></div>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Elevation="0" Style="overflow-x:auto">
+                <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Registro</th></tr></thead>
+                <tbody>
+                    @foreach (var r in registros)
+                    {
+                        <tr>
+                            <td>@Conta.Local(r.Data).ToString("dd/MM/yy HH:mm")</td>
+                            <td>@r.Usuario</td>
+                            <td>@r.Acao</td>
+                            <td>@r.Entidade @(r.EntidadeId?[..Math.Min(8, r.EntidadeId.Length)])</td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </div>
+    <div>
+        <div class="bloco">
+            <h2>Como protegemos</h2>
+            <ul style="padding-left:18px;margin:0;color:var(--suave);line-height:1.8">
+                <li>HTTPS em todas as conexões e backups criptografados</li>
+                <li>Isolamento: cada psicólogo só acessa os próprios dados</li>
+                <li>Lembretes neutros, sem a palavra "terapia" nem detalhes clínicos</li>
+                <li>Consentimento do paciente registrado para mensagens</li>
+                <li>Exportação e exclusão por paciente (direitos do titular)</li>
+                <li>Bloqueio após tentativas de login e verificação em duas etapas opcional</li>
+            </ul>
+        </div>
+        <div class="bloco">
+            <h2>Documentos</h2>
+            <MudStack Spacing="1">
+                <MudLink Href="/dpa" Target="_blank">Contrato de operador de dados (DPA)</MudLink>
+                <MudLink Href="/privacidade" Target="_blank">Política de privacidade</MudLink>
+                <MudLink Href="/termos" Target="_blank">Termos de uso</MudLink>
+                <MudLink Href="/Account/Manage/TwoFactorAuthentication">Ativar verificação em duas etapas</MudLink>
+            </MudStack>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Alento.Web.Data.Auditoria> registros = [];
+
+    protected override async Task OnInitializedAsync() => registros = await AuditoriaSvc.ListarAsync();
+}

@@ -1,0 +1,13 @@
+@using Alento.Web.Components.Account.Shared
+<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.SiteLayout)">
+            <NotAuthorized>
+                <RedirectToLogin />
+            </NotAuthorized>
+            <Authorizing>
+                <div style="padding:48px;text-align:center;color:#6b6b6b">Carregando…</div>
+            </Authorizing>
+        </AuthorizeRouteView>
+    </Found>
+</Router>

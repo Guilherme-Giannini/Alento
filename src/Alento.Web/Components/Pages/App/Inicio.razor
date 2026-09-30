@@ -1,0 +1,163 @@
+@page "/app"
+@inject PainelService Painel
+@inject AgendaService Agenda
+@inject NavigationManager Nav
+
+<PageTitle>Início · Alento</PageTitle>
+
+<div class="cabecalho">
+    <div>
+        <h1>@Saudacao, @Texto.PrimeiroNome(Conta.Tenant.Nome)</h1>
+        <p>@Conta.Local(DateTime.UtcNow).ToString("dddd, dd 'de' MMMM", Fuso.PtBr)</p>
+    </div>
+    @if (Conta.PodeEditar)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="NovaSessao" DropShadow="false">Nova sessão</MudButton>
+    }
+</div>
+
+@if (BemVindo)
+{
+    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => BemVindo = false">
+        <b>Conta criada! Seu teste de 7 dias começou.</b> Já deixamos horários de segunda a sexta e dois tipos de sessão configurados. Siga os passos abaixo para receber o primeiro agendamento ainda hoje.
+    </MudAlert>
+}
+
+@if (progresso is not null && progresso.Feitos < 5)
+{
+    <div class="bloco onboarding">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <h2 style="margin:0">Primeiros passos</h2>
+            <span style="color:var(--suave);font-size:.9rem">@progresso.Feitos de 5 concluídos</span>
+        </div>
+        <div class="progresso"><div style="width:@(progresso.Percentual)%"></div></div>
+        <Tarefa Feita="progresso.Horarios" Titulo="Confira seus horários de atendimento" Detalhe="Já deixamos seg–sex, 8h–12h e 14h–19h. Ajuste se quiser." Acao="Ajustar" Href="/app/configuracoes?aba=horarios" />
+        <Tarefa Feita="progresso.ChavePix" Titulo="Cadastre sua chave Pix" Detalhe="Para gerar a cobrança de cada sessão em um toque." Acao="Cadastrar" Href="/app/configuracoes" />
+        <Tarefa Feita="progresso.Paciente" Titulo="Adicione seu primeiro paciente" Detalhe="Ou compartilhe o link e deixe o paciente se cadastrar sozinho." Acao="Adicionar" Href="/app/pacientes?novo=true" />
+        <Tarefa Feita="progresso.Sessao" Titulo="Agende a primeira sessão" Detalhe="O lembrete no WhatsApp sai sozinho 24h antes." Acao="Agendar" Href="/app/agenda" />
+        <Tarefa Feita="progresso.Assinatura" Titulo="Garanta seu acesso" Detalhe="Assine agora e a primeira cobrança só acontece no fim do teste." Acao="Assinar" Href="/app/assinatura" />
+    </div>
+}
+
+@if (resumo is not null)
+{
+    <div class="cartoes-kpi">
+        <div class="kpi destaque">
+            <div class="rotulo">Recebido no mês</div>
+            <div class="valor">@Texto.Moeda(resumo.Recebido)</div>
+            <div class="detalhe">@Texto.Moeda(resumo.AReceber) a receber</div>
+        </div>
+        <div class="kpi">
+            <div class="rotulo">Sessões realizadas</div>
+            <div class="valor">@resumo.SessoesRealizadas</div>
+            <div class="detalhe">+ @resumo.SessoesPrevistas previstas no mês</div>
+        </div>
+        <div class="kpi">
+            <div class="rotulo">Faltas</div>
+            <div class="valor">@resumo.Faltas</div>
+            <div class="detalhe">@resumo.TaxaFaltas.ToString("P0", Fuso.PtBr) das sessões</div>
+        </div>
+        <div class="kpi">
+            <div class="rotulo">Previsto para o mês</div>
+            <div class="valor">@Texto.Moeda(resumo.Previsto + resumo.Recebido + resumo.AReceber)</div>
+            <div class="detalhe">@resumo.LembretesEnviados lembretes enviados</div>
+        </div>
+    </div>
+}
+
+<div class="grade-2">
+    <div class="bloco">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <h2>Hoje e amanhã</h2>
+            <MudButton Href="/app/agenda" Variant="Variant.Text" Size="Size.Small">Ver agenda →</MudButton>
+        </div>
+        @if (pendentesBaixa > 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                @pendentesBaixa @(pendentesBaixa == 1 ? "sessão passada precisa" : "sessões passadas precisam") de baixa (realizada ou falta).
+                <MudLink Href="/app/agenda#pendentes">Resolver</MudLink>
+            </MudAlert>
+        }
+        @if (proximas is null)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (proximas.Count == 0)
+        {
+            <div class="vazio">
+                <div class="emoji">🌿</div>
+                <p>Nenhuma sessão hoje ou amanhã.<br />Compartilhe seu link para receber agendamentos.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var s in proximas)
+            {
+                var local = Conta.Local(s.InicioUtc);
+                <div class="sessao-item" @onclick="() => AbrirSessao(s)">
+                    <div class="sessao-hora">@local.ToString("HH:mm")<br /><small style="font-weight:500;color:var(--suave)">@(DateOnly.FromDateTime(local) == Conta.Hoje ? "hoje" : "amanhã")</small></div>
+                    <div class="sessao-info">
+                        <b>@s.Paciente</b>
+                        <small>@s.Servico@(s.Modalidade == Modalidade.Online ? " · online" : "")</small>
+                    </div>
+                    <StatusSessao Status="s.Status" />
+                </div>
+            }
+        }
+    </div>
+
+    <div class="bloco">
+        <h2>Seu link de agendamento</h2>
+        <p style="color:var(--suave);margin-top:0">Coloque na bio do Instagram, no status do WhatsApp e na assinatura do e-mail. Cada paciente que marca sozinho é uma conversa a menos para você.</p>
+        <div class="link-publico">
+            <MudIcon Icon="@Icons.Material.Outlined.Link" Color="Color.Primary" />
+            <span style="flex:1">@LinkPublico</span>
+        </div>
+        <MudStack Row="true" Class="mt-3" Wrap="Wrap.Wrap" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" StartIcon="@Icons.Material.Outlined.ContentCopy" OnClick="CopiarLink">Copiar link</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Custom.Brands.WhatsApp" Href="@LinkWhatsApp" Target="_blank">Enviar no WhatsApp</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="@($"/{Conta.Tenant.Slug}")" Target="_blank">Ver como paciente</MudButton>
+        </MudStack>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "bemvindo")] public bool BemVindo { get; set; }
+
+    private ResumoMes? resumo;
+    private ProgressoAtivacao? progresso;
+    private List<ItemAgenda>? proximas;
+    private int pendentesBaixa;
+
+    private string LinkPublico => Nav.ToAbsoluteUri($"/{Conta.Tenant.Slug}").ToString();
+    private string LinkWhatsApp => "https://wa.me/?text=" + Uri.EscapeDataString($"Olá! Agora você pode marcar sua sessão comigo direto por aqui: {LinkPublico}");
+
+    private string Saudacao => Conta.Local(DateTime.UtcNow).Hour switch { < 12 => "Bom dia", < 18 => "Boa tarde", _ => "Boa noite" };
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        var hoje = Conta.Hoje;
+        resumo = await Painel.ResumoAsync(hoje.Year, hoje.Month, Conta.Fuso);
+        progresso = await Painel.ProgressoAsync();
+        pendentesBaixa = await Painel.PendentesDeBaixaAsync();
+        proximas = await Agenda.ListarAsync(Conta.Utc(hoje.ToDateTime(TimeOnly.MinValue)), Conta.Utc(hoje.AddDays(2).ToDateTime(TimeOnly.MinValue)));
+    }
+
+    private Task CopiarLink() => Copiar(LinkPublico, "Link copiado! Cole na bio e no WhatsApp.");
+
+    private async Task NovaSessao()
+    {
+        var r = await (await Dialogos.ShowAsync<NovoAgendamentoDialog>("Nova sessão",
+            new DialogParameters<NovoAgendamentoDialog> { { x => x.Conta, Conta } }, Opcoes())).Result;
+        if (r is { Canceled: false }) await Carregar();
+    }
+
+    private async Task AbrirSessao(ItemAgenda s)
+    {
+        var r = await (await Dialogos.ShowAsync<SessaoDialog>(s.Paciente,
+            new DialogParameters<SessaoDialog> { { x => x.Item, s }, { x => x.Conta, Conta } }, Opcoes())).Result;
+        if (r is { Canceled: false }) await Carregar();
+    }
+}

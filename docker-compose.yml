@@ -1,0 +1,65 @@
+# Produção numa VPS única: app .NET + PostgreSQL 17 + Caddy (HTTPS automático).
+# Uso: cp .env.example .env && docker compose up -d
+services:
+  app:
+    image: ${ALENTO_IMAGEM:-ghcr.io/seu-usuario/alento:latest}
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=alento;Username=alento;Password=${POSTGRES_PASSWORD}"
+      Alento__UrlBase: "https://${DOMINIO}"
+      Alento__Admins__0: "${ADMIN_EMAIL}"
+      WhatsApp__Token: "${WHATSAPP_TOKEN}"
+      WhatsApp__PhoneNumberId: "${WHATSAPP_PHONE_NUMBER_ID}"
+      WhatsApp__AppSecret: "${WHATSAPP_APP_SECRET}"
+      WhatsApp__VerifyToken: "${WHATSAPP_VERIFY_TOKEN}"
+      WhatsApp__TemplateLembrete: "${WHATSAPP_TEMPLATE:-lembrete_sessao}"
+      Asaas__BaseUrl: "${ASAAS_BASE_URL:-https://api.asaas.com/v3}"
+      Asaas__ApiKey: "${ASAAS_API_KEY}"
+      Asaas__WebhookToken: "${ASAAS_WEBHOOK_TOKEN}"
+      Email__ResendApiKey: "${RESEND_API_KEY}"
+      Email__Remetente: "Alento <nao-responda@${DOMINIO}>"
+      Sentry__Dsn: "${SENTRY_DSN}"
+    volumes:
+      - chaves:/keys
+    expose:
+      - "8080"
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: alento
+      POSTGRES_USER: alento
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alento -d alento"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${DOMINIO}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  chaves:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1f4d45" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    @if (Area == AreaSite.Painel)
+    {
+        <link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" />
+        <link rel="stylesheet" href="@Assets["css/painel.css"]" />
+    }
+    else if (Area == AreaSite.Conta)
+    {
+        <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+        <link rel="stylesheet" href="@Assets["css/site.css"]" />
+        <link rel="stylesheet" href="@Assets["css/conta.css"]" />
+    }
+    else
+    {
+        <link rel="stylesheet" href="@Assets["css/site.css"]" />
+    }
+    <link rel="stylesheet" href="@Assets["Alento.Web.styles.css"]" />
+    <ImportMap />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <HeadOutlet @rendermode="ModoRenderizacao" />
+</head>
+
+<body class="area-@Area.ToString().ToLowerInvariant()">
+    <Routes @rendermode="ModoRenderizacao" />
+    @if (Area == AreaSite.Painel)
+    {
+        <ReconnectModal />
+        <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
+        <script src="@Assets["js/painel.js"]"></script>
+    }
+    @if (Area == AreaSite.Site)
+    {
+        <script src="@Assets["js/site.js"]" defer></script>
+    }
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    @if (Area == AreaSite.Conta)
+    {
+        <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>
+    }
+</body>
+
+</html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private enum AreaSite { Site, Painel, Conta }
+
+    private AreaSite Area =>
+        HttpContext.Request.Path.StartsWithSegments("/app") ? AreaSite.Painel
+        : HttpContext.Request.Path.StartsWithSegments("/Account") ? AreaSite.Conta
+        : AreaSite.Site;
+
+    // Só o painel (/app) é interativo; landing, página pública e contas são SSR estático (rápidas e boas para SEO).
+    private IComponentRenderMode? ModoRenderizacao =>
+        HttpContext.AcceptsInteractiveRouting() && Area == AreaSite.Painel ? InteractiveServer : null;
+}

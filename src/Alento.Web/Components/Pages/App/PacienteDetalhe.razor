@@ -1,0 +1,167 @@
+@page "/app/pacientes/{Id:guid}"
+@inject PacienteService PacienteSvc
+@inject AgendaService AgendaSvc
+@inject CobrancaService CobrancaSvc
+@inject NavigationManager Nav
+
+<PageTitle>@(detalhe?.Paciente.Nome ?? "Paciente") · Alento</PageTitle>
+
+@if (detalhe is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    var p = detalhe.Paciente;
+    <div class="cabecalho">
+        <div>
+            <MudLink Href="/app/pacientes" Typo="Typo.body2">← Pacientes</MudLink>
+            <h1>@p.Nome</h1>
+            <p>
+                @Texto.FormatarWhatsApp(p.WhatsApp)@(string.IsNullOrWhiteSpace(p.Email) ? "" : $" · {p.Email}")
+                @if (!p.ConsentimentoMensagens)
+                {
+                    <span class="status pendente" style="margin-left:6px">sem consentimento para lembretes</span>
+                }
+            </p>
+        </div>
+        <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Custom.Brands.WhatsApp" Href="@($"https://wa.me/{p.WhatsApp}")" Target="_blank">WhatsApp</MudButton>
+            @if (Conta.PodeEditar)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Edit" OnClick="Editar">Editar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Agendar" DropShadow="false">Agendar</MudButton>
+            }
+        </MudStack>
+    </div>
+
+    <div class="cartoes-kpi">
+        <div class="kpi"><div class="rotulo">Sessões realizadas</div><div class="valor">@detalhe.Realizadas</div></div>
+        <div class="kpi"><div class="rotulo">Faltas</div><div class="valor">@detalhe.Faltas</div><div class="detalhe">@detalhe.TaxaFaltas.ToString("P0", Fuso.PtBr) de taxa de faltas</div></div>
+        <div class="kpi"><div class="rotulo">Pago</div><div class="valor">@Texto.Moeda(detalhe.Pago)</div></div>
+        <div class="kpi @(detalhe.EmAberto > 0 ? "destaque" : "")"><div class="rotulo">A receber</div><div class="valor">@Texto.Moeda(detalhe.EmAberto)</div></div>
+    </div>
+
+    <div class="grade-2">
+        <div class="bloco">
+            <h2>Histórico de sessões</h2>
+            @if (detalhe.Historico.Count == 0)
+            {
+                <div class="vazio"><p>Nenhuma sessão ainda.</p></div>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Hover="true" Elevation="0" Style="overflow-x:auto">
+                    <thead><tr><th>Data</th><th>Serviço</th><th>Status</th><th>Valor</th><th>Pagamento</th></tr></thead>
+                    <tbody>
+                        @foreach (var h in detalhe.Historico)
+                        {
+                            <tr>
+                                <td>@Conta.Local(h.InicioUtc).ToString("dd/MM/yy HH:mm")</td>
+                                <td>@h.Servico</td>
+                                <td><StatusSessao Status="h.Status" /></td>
+                                <td>@Texto.Moeda(h.Valor)</td>
+                                <td><StatusPagamento Status="h.Cobranca" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </div>
+
+        <div>
+            <div class="bloco">
+                <h2>Sessões semanais</h2>
+                @if (recorrencias.Count == 0)
+                {
+                    <p style="color:var(--suave);margin:0">Nenhuma. Ao agendar, ative "Repetir toda semana".</p>
+                }
+                @foreach (var r in recorrencias)
+                {
+                    <div class="sessao-item" style="cursor:default">
+                        <MudIcon Icon="@Icons.Material.Outlined.Repeat" Color="Color.Primary" />
+                        <div class="sessao-info">
+                            <b>Toda @Fuso.DiaSemana(r.DiaDaSemana) às @r.Horario.ToString("HH:mm")</b>
+                            <small>@r.Servico?.Nome · desde @r.InicioEm.ToString("dd/MM/yy")</small>
+                        </div>
+                        @if (Conta.PodeEditar)
+                        {
+                            <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text" OnClick="() => Encerrar(r)">Encerrar</MudButton>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(p.Observacoes))
+            {
+                <div class="bloco">
+                    <h2>Observações</h2>
+                    <p style="margin:0;white-space:pre-wrap">@p.Observacoes</p>
+                </div>
+            }
+
+            <div class="bloco">
+                <h2>Dados do paciente (LGPD)</h2>
+                <p style="color:var(--suave);margin-top:0;font-size:.9rem">Direitos do titular: exporte tudo que existe sobre este paciente ou exclua definitivamente a pedido dele.</p>
+                <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Download" Href="@($"/app/exportar/paciente/{p.Id}")" Target="_blank">Exportar dados</MudButton>
+                    @if (Conta.PodeEditar)
+                    {
+                        <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.DeleteForever" OnClick="Excluir">Excluir paciente</MudButton>
+                    }
+                </MudStack>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private DetalhePaciente? detalhe;
+    private List<Recorrencia> recorrencias = [];
+
+    protected override async Task OnParametersSetAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        detalhe = await PacienteSvc.DetalheAsync(Id);
+        if (detalhe is null)
+        {
+            Nav.NavigateTo("/app/pacientes");
+            return;
+        }
+        recorrencias = await AgendaSvc.RecorrenciasAtivasAsync(Id);
+    }
+
+    private async Task Editar()
+    {
+        var r = await (await Dialogos.ShowAsync<PacienteDialog>("Editar paciente",
+            new DialogParameters<PacienteDialog> { { x => x.Paciente, detalhe!.Paciente } }, Opcoes())).Result;
+        if (r is { Canceled: false }) await Carregar();
+    }
+
+    private async Task Agendar()
+    {
+        var r = await (await Dialogos.ShowAsync<NovoAgendamentoDialog>("Nova sessão",
+            new DialogParameters<NovoAgendamentoDialog> { { x => x.Conta, Conta }, { x => x.PacienteInicial, Id } }, Opcoes())).Result;
+        if (r is { Canceled: false }) await Carregar();
+    }
+
+    private async Task Encerrar(Recorrencia r)
+    {
+        var ok = await Dialogos.ShowMessageBoxAsync("Encerrar sessões semanais?",
+            "As sessões futuras desta série serão canceladas. As passadas continuam no histórico.", "Encerrar", cancelText: "Voltar");
+        if (ok == true && await Executar(() => AgendaSvc.EncerrarRecorrenciaAsync(r.Id), "Série encerrada."))
+            await Carregar();
+    }
+
+    private async Task Excluir()
+    {
+        var ok = await Dialogos.ShowMessageBoxAsync("Excluir definitivamente?",
+            (MarkupString)"Isso apaga o paciente, todas as sessões, mensagens e cobranças dele. <b>Não dá para desfazer.</b><br/><br/>Atenção: a Resolução CFP 001/2009 exige guardar o registro documental por 5 anos. Exporte os dados antes, se necessário.",
+            "Excluir tudo", cancelText: "Cancelar");
+        if (ok == true && await Executar(() => PacienteSvc.ExcluirAsync(Id), "Paciente excluído."))
+            Nav.NavigateTo("/app/pacientes");
+    }
+}

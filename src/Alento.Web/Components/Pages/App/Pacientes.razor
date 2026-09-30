@@ -1,0 +1,103 @@
+@page "/app/pacientes"
+@inject PacienteService PacienteSvc
+@inject NavigationManager Nav
+
+<PageTitle>Pacientes · Alento</PageTitle>
+
+<div class="cabecalho">
+    <div>
+        <h1>Pacientes</h1>
+        <p>@(lista?.Count ?? 0) @(incluirInativos ? "pacientes" : "pacientes ativos")</p>
+    </div>
+    @if (Conta.PodeEditar)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="Novo" DropShadow="false">Novo paciente</MudButton>
+    }
+</div>
+
+<div class="bloco">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-2">
+        <MudTextField T="string" Value="busca" ValueChanged="Buscar" Immediate="true" DebounceInterval="300" Placeholder="Buscar por nome ou WhatsApp"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:360px" />
+        <MudSwitch T="bool" Value="incluirInativos" ValueChanged="TrocarInativos" Color="Color.Primary" Label="Mostrar inativos" />
+    </MudStack>
+
+    @if (lista is null)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (lista.Count == 0)
+    {
+        <div class="vazio">
+            <div class="emoji">🧑‍🤝‍🧑</div>
+            <p>Nenhum paciente ainda. Cadastre aqui ou compartilhe seu link: quem agenda por lá entra na lista automaticamente.</p>
+        </div>
+    }
+    else
+    {
+        <MudTable Items="lista" Hover="true" Elevation="0" Dense="true" OnRowClick="(TableRowClickEventArgs<ResumoPaciente> e) => Abrir(e.Item!)" T="ResumoPaciente" Breakpoint="Breakpoint.Sm" RowStyle="cursor:pointer">
+            <HeaderContent>
+                <MudTh>Nome</MudTh>
+                <MudTh>WhatsApp</MudTh>
+                <MudTh>Sessões</MudTh>
+                <MudTh>Faltas</MudTh>
+                <MudTh>A receber</MudTh>
+                <MudTh>Próxima sessão</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Nome"><b>@context.Nome</b>@(context.Ativo ? "" : " (inativo)")</MudTd>
+                <MudTd DataLabel="WhatsApp">@Texto.FormatarWhatsApp(context.WhatsApp)</MudTd>
+                <MudTd DataLabel="Sessões">@context.Sessoes</MudTd>
+                <MudTd DataLabel="Faltas">
+                    @if (context.Faltas > 0)
+                    {
+                        <span class="status faltou">@context.Faltas</span>
+                    }
+                    else
+                    {
+                        <span>0</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="A receber">@(context.EmAberto > 0 ? Texto.Moeda(context.EmAberto) : "—")</MudTd>
+                <MudTd DataLabel="Próxima">@(context.ProximaSessao is { } p ? Conta.Local(p).ToString("ddd dd/MM HH:mm", Fuso.PtBr) : "—")</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "novo")] public bool AbrirNovo { get; set; }
+
+    private List<ResumoPaciente>? lista;
+    private string busca = "";
+    private bool incluirInativos;
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && AbrirNovo && Conta.PodeEditar) await Novo();
+    }
+
+    private async Task Carregar() => lista = await PacienteSvc.ListarAsync(busca, incluirInativos);
+
+    private async Task Buscar(string texto)
+    {
+        busca = texto;
+        await Carregar();
+    }
+
+    private async Task TrocarInativos(bool v)
+    {
+        incluirInativos = v;
+        await Carregar();
+    }
+
+    private async Task Novo()
+    {
+        var r = await (await Dialogos.ShowAsync<PacienteDialog>("Novo paciente", Opcoes())).Result;
+        if (r is { Canceled: false, Data: Guid id }) Nav.NavigateTo($"/app/pacientes/{id}");
+    }
+
+    private void Abrir(ResumoPaciente p) => Nav.NavigateTo($"/app/pacientes/{p.Id}");
+}

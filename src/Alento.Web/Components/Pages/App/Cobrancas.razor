@@ -1,0 +1,129 @@
+@page "/app/cobrancas"
+@inject CobrancaService CobrancaSvc
+
+<PageTitle>Cobranças · Alento</PageTitle>
+
+<div class="cabecalho">
+    <div>
+        <h1>Cobranças</h1>
+        <p>Pix copia-e-cola com a sua chave. O dinheiro cai direto na sua conta.</p>
+    </div>
+</div>
+
+<div class="cartoes-kpi">
+    <div class="kpi destaque"><div class="rotulo">A receber</div><div class="valor">@Texto.Moeda(lista.Where(c => c.Status == StatusCobranca.Pendente).Sum(c => c.Valor))</div><div class="detalhe">@lista.Count(c => c.Status == StatusCobranca.Pendente) cobranças em aberto</div></div>
+    <div class="kpi"><div class="rotulo">Recebido (período)</div><div class="valor">@Texto.Moeda(lista.Where(c => c.Status == StatusCobranca.Paga).Sum(c => c.Valor))</div></div>
+</div>
+
+<div class="bloco">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-3">
+        <MudToggleGroup T="string" Value="filtro" ValueChanged="Filtrar" Color="Color.Primary" Size="Size.Small" Outlined="true">
+            <MudToggleItem Value="@("pendente")" Text="A receber" />
+            <MudToggleItem Value="@("paga")" Text="Pagas" />
+            <MudToggleItem Value="@("todas")" Text="Todas" />
+        </MudToggleGroup>
+        <MudSelect T="int" Value="meses" ValueChanged="TrocarPeriodo" Label="Período" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px">
+            <MudSelectItem T="int" Value="1">Último mês</MudSelectItem>
+            <MudSelectItem T="int" Value="3">Últimos 3 meses</MudSelectItem>
+            <MudSelectItem T="int" Value="12">Últimos 12 meses</MudSelectItem>
+        </MudSelect>
+    </MudStack>
+
+    @if (Filtradas.Count == 0)
+    {
+        <div class="vazio">
+            <div class="emoji">💚</div>
+            <p>@(filtro == "pendente" ? "Nada em aberto. Tudo recebido!" : "Nenhuma cobrança no período.")<br />As cobranças são criadas quando você marca a sessão como realizada.</p>
+        </div>
+    }
+    else
+    {
+        <MudTable Items="Filtradas" Hover="true" Elevation="0" Dense="true" T="ItemCobranca" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Sessão</MudTh>
+                <MudTh>Paciente</MudTh>
+                <MudTh>Valor</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Sessão">@Conta.Local(context.SessaoUtc).ToString("dd/MM/yy HH:mm")</MudTd>
+                <MudTd DataLabel="Paciente"><MudLink Href="@($"/app/pacientes/{context.PacienteId}")">@context.Paciente</MudLink></MudTd>
+                <MudTd DataLabel="Valor"><b>@Texto.Moeda(context.Valor)</b></MudTd>
+                <MudTd DataLabel="Status">
+                    <StatusPagamento Status="context.Status" />
+                    @if (context.PagoEm is { } pg)
+                    {
+                        <small style="color:var(--suave)"> em @Conta.Local(pg).ToString("dd/MM")</small>
+                    }
+                </MudTd>
+                <MudTd Style="text-align:right;white-space:nowrap">
+                    @if (context.Status == StatusCobranca.Pendente)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCode2" OnClick="() => Pix(context)">Enviar Pix</MudButton>
+                        @if (Conta.PodeEditar)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" DropShadow="false" OnClick="() => Pagar(context, true)" Class="ml-1">Pago</MudButton>
+                            <MudIconButton Size="Size.Small" Icon="@Icons.Material.Outlined.Close" OnClick="() => Cancelar(context)" aria-label="Cancelar cobrança" />
+                        }
+                    }
+                    else if (context.Status == StatusCobranca.Paga && Conta.PodeEditar)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => Pagar(context, false)">Desfazer</MudButton>
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</div>
+
+@code {
+    private List<ItemCobranca> lista = [];
+    private string filtro = "pendente";
+    private int meses = 3;
+
+    private List<ItemCobranca> Filtradas => filtro switch
+    {
+        "pendente" => lista.Where(c => c.Status == StatusCobranca.Pendente).ToList(),
+        "paga" => lista.Where(c => c.Status == StatusCobranca.Paga).ToList(),
+        _ => lista
+    };
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar() => lista = await CobrancaSvc.ListarAsync(deUtc: DateTime.UtcNow.AddMonths(-meses));
+
+    private void Filtrar(string f) => filtro = f;
+
+    private async Task TrocarPeriodo(int m)
+    {
+        meses = m;
+        await Carregar();
+    }
+
+    private async Task Pagar(ItemCobranca c, bool paga)
+    {
+        if (await Executar(() => CobrancaSvc.MarcarComoPagaAsync(c.Id, paga), paga ? "Pagamento registrado." : "Marcada como a receber."))
+            await Carregar();
+    }
+
+    private async Task Cancelar(ItemCobranca c)
+    {
+        if (await Executar(() => CobrancaSvc.CancelarAsync(c.Id), "Cobrança cancelada."))
+            await Carregar();
+    }
+
+    private async Task Pix(ItemCobranca c)
+    {
+        await Dialogos.ShowAsync<PixDialog>("Cobrar por Pix",
+            new DialogParameters<PixDialog>
+            {
+                { x => x.CobrancaId, c.Id },
+                { x => x.NomePaciente, c.Paciente },
+                { x => x.WhatsApp, c.WhatsApp },
+                { x => x.SessaoLocal, Conta.Local(c.SessaoUtc) },
+                { x => x.NomePsicologo, Conta.Tenant.Nome }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true });
+    }
+}

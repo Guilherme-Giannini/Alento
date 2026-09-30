@@ -1,0 +1,247 @@
+@page "/app/agenda"
+@inject AgendaService AgendaSvc
+@inject ConfiguracaoAgendaService Config
+@inject NavigationManager Nav
+
+<PageTitle>Agenda · Alento</PageTitle>
+
+<div class="cabecalho">
+    <div>
+        <h1>Agenda</h1>
+        <p>Toque num horário vazio para agendar, ou numa sessão para ver detalhes.</p>
+    </div>
+    @if (Conta.PodeEditar)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="() => NovaSessao(null)" DropShadow="false">Nova sessão</MudButton>
+    }
+</div>
+
+@if (pendentes.Count > 0)
+{
+    <div class="bloco" id="pendentes">
+        <h2>Sessões passadas aguardando baixa (@pendentes.Count)</h2>
+        @foreach (var s in pendentes.Take(mostrarTodosPendentes ? 100 : 5))
+        {
+            var local = Conta.Local(s.InicioUtc);
+            <div class="sessao-item" style="cursor:default">
+                <div class="sessao-hora">@local.ToString("dd/MM")<br /><small style="font-weight:500;color:var(--suave)">@local.ToString("HH:mm")</small></div>
+                <div class="sessao-info"><b>@s.Paciente</b><small>@s.Servico</small></div>
+                @if (Conta.PodeEditar)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="() => Baixa(s, StatusAgendamento.Realizado)">Realizada</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="() => Baixa(s, StatusAgendamento.Faltou)">Faltou</MudButton>
+                }
+            </div>
+        }
+        @if (pendentes.Count > 5 && !mostrarTodosPendentes)
+        {
+            <MudButton Variant="Variant.Text" OnClick="() => mostrarTodosPendentes = true">Ver todas</MudButton>
+        }
+    </div>
+}
+
+<div class="agenda-barra">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="() => Mover(-1)" aria-label="Anterior" Variant="Variant.Outlined" Size="Size.Small" />
+    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="IrHoje">Hoje</MudButton>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="() => Mover(1)" aria-label="Próximo" Variant="Variant.Outlined" Size="Size.Small" />
+    <span class="periodo">@TituloPeriodo</span>
+    <MudSpacer />
+    <MudToggleGroup T="string" Value="visao" ValueChanged="TrocarVisao" Size="Size.Small" Color="Color.Primary" Outlined="true">
+        <MudToggleItem Value="@("dia")" Text="Dia" />
+        <MudToggleItem Value="@("semana")" Text="Semana" />
+    </MudToggleGroup>
+</div>
+
+<div class="agenda">
+    <div class="agenda-grade" style="grid-template-columns: 56px repeat(@Dias.Count, minmax(@(visao == "dia" ? "240px" : "96px"), 1fr)); min-width:@(visao == "dia" ? "300px" : "760px")">
+        <div class="agenda-cab" style="position:sticky;left:0"></div>
+        @foreach (var d in Dias)
+        {
+            <div class="agenda-cab @(d == Conta.Hoje ? "hoje" : "")">
+                @Fuso.DiaSemanaCurto(d.DayOfWeek)
+                <b>@d.Day</b>
+            </div>
+        }
+
+        <div class="agenda-horas" style="height:@(AlturaTotal)px">
+            @for (var h = horaInicio; h <= horaFim; h++)
+            {
+                <div class="agenda-hora" style="top:@Px((h - horaInicio) * 60)px">@(h.ToString("00")):00</div>
+            }
+        </div>
+
+        @foreach (var d in Dias)
+        {
+            <div class="agenda-coluna" style="height:@(AlturaTotal)px">
+                @for (var h = horaInicio; h < horaFim; h++)
+                {
+                    <div class="agenda-linha" style="top:@Px((h - horaInicio) * 60)px"></div>
+                }
+                @foreach (var disp in disponibilidades.Where(x => x.DiaDaSemana == d.DayOfWeek))
+                {
+                    <div class="agenda-disp" style="top:@Px(Minutos(disp.Inicio))px;height:@Px(disp.Fim.ToTimeSpan().TotalMinutes - disp.Inicio.ToTimeSpan().TotalMinutes)px"></div>
+                }
+                @if (Conta.PodeEditar)
+                {
+                    @for (var m = 0; m < (horaFim - horaInicio) * 60; m += 30)
+                    {
+                        var minuto = m;
+                        var dia = d;
+                        <div class="agenda-clique" style="top:@Px(minuto)px;height:@Px(30)px" @onclick="() => NovaSessao(dia.ToDateTime(new TimeOnly(horaInicio, 0)).AddMinutes(minuto))" title="Agendar"></div>
+                    }
+                }
+                @foreach (var b in bloqueios)
+                {
+                    var (topo, altura) = Faixa(d, b.Inicio, b.Fim);
+                    if (altura > 0)
+                    {
+                        <div class="agenda-bloqueio" style="top:@Px(topo)px;height:@Px(altura)px">🚫 @b.Motivo</div>
+                    }
+                }
+                @foreach (var s in itens.Where(i => DateOnly.FromDateTime(Conta.Local(i.InicioUtc)) == d))
+                {
+                    var (topo, altura) = Faixa(d, s.InicioUtc, s.FimUtc);
+                    var item = s;
+                    <div class="agenda-evento @s.Status.ToString().ToLowerInvariant()" style="top:@Px(topo)px;height:@Px(Math.Max(altura, 24))px" @onclick="() => AbrirSessao(item)" @onclick:stopPropagation="true">
+                        <b>@(s.Status == StatusAgendamento.Confirmado ? "✓ " : "")@s.Paciente</b>
+                        @Conta.Local(s.InicioUtc).ToString("HH:mm")@(s.Modalidade == Modalidade.Online ? " · online" : "")@(s.Recorrente ? " ↻" : "")
+                    </div>
+                }
+                @if (d == Conta.Hoje)
+                {
+                    var agora = Conta.Local(DateTime.UtcNow);
+                    var min = (agora.Hour - horaInicio) * 60 + agora.Minute;
+                    if (min >= 0 && min <= (horaFim - horaInicio) * 60)
+                    {
+                        <div class="agenda-agora" style="top:@Px(min)px"></div>
+                    }
+                }
+            </div>
+        }
+    </div>
+</div>
+<div class="legenda">
+    <span><span class="status agendado">Agendada</span> aguardando confirmação</span>
+    <span><span class="status confirmado">✓ Confirmada</span> pelo paciente</span>
+    <span><span class="status realizado">Realizada</span></span>
+    <span><span class="status faltou">Faltou</span></span>
+    <span>Fundo verde claro = seus horários de atendimento · ↻ = sessão semanal</span>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "dia")] public string? DiaQuery { get; set; }
+
+    private const double PxPorMinuto = 1.1;
+    private string visao = "semana";
+    private DateOnly referencia;
+    private List<ItemAgenda> itens = [];
+    private List<ItemAgenda> pendentes = [];
+    private List<Bloqueio> bloqueios = [];
+    private List<Disponibilidade> disponibilidades = [];
+    private int horaInicio = 7, horaFim = 21;
+    private bool mostrarTodosPendentes;
+
+    private List<DateOnly> Dias => visao == "dia"
+        ? [referencia]
+        : Enumerable.Range(0, 7).Select(i => InicioSemana(referencia).AddDays(i)).ToList();
+
+    private double AlturaTotal => Px((horaFim - horaInicio) * 60);
+
+    private string TituloPeriodo => visao == "dia"
+        ? referencia.ToString("dddd, dd 'de' MMMM", Fuso.PtBr)
+        : $"{Dias[0]:dd/MM} – {Dias[^1]:dd/MM/yyyy}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        referencia = DateOnly.TryParse(DiaQuery, out var d) ? d : Conta.Hoje;
+        disponibilidades = await Config.DisponibilidadesAsync();
+        await Carregar();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // No celular, a visão de dia é mais legível.
+        if (firstRender && visao == "semana" && await JS.InvokeAsync<int>("alento.largura") < 700)
+        {
+            visao = "dia";
+            await Carregar();
+            StateHasChanged();
+        }
+    }
+
+    private async Task Carregar()
+    {
+        var de = Conta.Utc(Dias[0].ToDateTime(TimeOnly.MinValue));
+        var ate = Conta.Utc(Dias[^1].AddDays(1).ToDateTime(TimeOnly.MinValue));
+        itens = await AgendaSvc.ListarAsync(de, ate);
+        bloqueios = (await Config.BloqueiosFuturosAsync()).Where(b => b.Inicio < ate && b.Fim > de).ToList();
+
+        var agora = DateTime.UtcNow;
+        pendentes = (await AgendaSvc.ListarAsync(agora.AddDays(-60), agora))
+            .Where(s => s.FimUtc < agora && s.Status is StatusAgendamento.Agendado or StatusAgendamento.Confirmado)
+            .OrderByDescending(s => s.InicioUtc).ToList();
+
+        // A grade se ajusta à disponibilidade e às sessões fora dela.
+        var horas = disponibilidades.SelectMany(x => new[] { x.Inicio.Hour, x.Fim.Hour + (x.Fim.Minute > 0 ? 1 : 0) })
+            .Concat(itens.SelectMany(i => new[] { Conta.Local(i.InicioUtc).Hour, Conta.Local(i.FimUtc).Hour + 1 }))
+            .ToList();
+        horaInicio = Math.Min(8, horas.DefaultIfEmpty(8).Min());
+        horaFim = Math.Clamp(Math.Max(19, horas.DefaultIfEmpty(19).Max()), horaInicio + 1, 24);
+    }
+
+    private static DateOnly InicioSemana(DateOnly d) => d.AddDays(-(((int)d.DayOfWeek + 6) % 7));
+
+    private static double Px(double minutos) => Math.Round(minutos * PxPorMinuto, 1);
+
+    private double Minutos(TimeOnly t) => t.ToTimeSpan().TotalMinutes - horaInicio * 60;
+
+    private (double topo, double altura) Faixa(DateOnly dia, DateTime inicioUtc, DateTime fimUtc)
+    {
+        var abertura = dia.ToDateTime(new TimeOnly(horaInicio, 0));
+        var fechamento = horaFim >= 24 ? dia.AddDays(1).ToDateTime(TimeOnly.MinValue) : dia.ToDateTime(new TimeOnly(horaFim, 0));
+        var ini = Conta.Local(inicioUtc);
+        var fim = Conta.Local(fimUtc);
+        if (ini < abertura) ini = abertura;
+        if (fim > fechamento) fim = fechamento;
+        if (fim <= ini) return (0, 0);
+        return ((ini - abertura).TotalMinutes, (fim - ini).TotalMinutes);
+    }
+
+    private async Task Mover(int direcao)
+    {
+        referencia = referencia.AddDays(direcao * (visao == "dia" ? 1 : 7));
+        await Carregar();
+    }
+
+    private async Task IrHoje()
+    {
+        referencia = Conta.Hoje;
+        await Carregar();
+    }
+
+    private async Task TrocarVisao(string v)
+    {
+        visao = v;
+        await Carregar();
+    }
+
+    private async Task NovaSessao(DateTime? inicioLocal)
+    {
+        var r = await (await Dialogos.ShowAsync<NovoAgendamentoDialog>("Nova sessão",
+            new DialogParameters<NovoAgendamentoDialog> { { x => x.Conta, Conta }, { x => x.InicioLocalInicial, inicioLocal } }, Opcoes())).Result;
+        if (r is { Canceled: false }) await Carregar();
+    }
+
+    private async Task AbrirSessao(ItemAgenda s)
+    {
+        var r = await (await Dialogos.ShowAsync<SessaoDialog>(s.Paciente,
+            new DialogParameters<SessaoDialog> { { x => x.Item, s }, { x => x.Conta, Conta } }, Opcoes())).Result;
+        if (r is { Canceled: false }) await Carregar();
+    }
+
+    private async Task Baixa(ItemAgenda s, StatusAgendamento status)
+    {
+        if (await Executar(() => AgendaSvc.AlterarStatusAsync(s.Id, status), status == StatusAgendamento.Realizado ? "Sessão realizada. Cobrança gerada." : "Falta registrada."))
+            await Carregar();
+    }
+}

@@ -1,0 +1,84 @@
+@page "/termos"
+@page "/privacidade"
+@page "/dpa"
+@attribute [ExcludeFromInteractiveRouting]
+@layout SiteLayout
+@inject NavigationManager Nav
+
+<PageTitle>@Titulo · Alento</PageTitle>
+
+<header class="nav rolou">
+    <div class="container">
+        <a href="/" class="logo"><Logo /> Alento</a>
+        <div class="nav-acoes">
+            <a href="/Account/Login" class="btn-link">Entrar</a>
+            <a href="/Account/Register" class="btn-cta">Testar grátis</a>
+        </div>
+    </div>
+</header>
+
+<main class="doc">
+    <div class="container estreito">
+        <h1>@Titulo</h1>
+        <p class="alerta info">Versão inicial. Este texto deve ser revisado por advogado especializado em LGPD antes do lançamento.</p>
+
+        @switch (Pagina)
+        {
+            case "termos":
+                <h2>1. O serviço</h2>
+                <p>O Alento oferece agenda online, página pública de agendamento, lembretes por WhatsApp e geração de Pix copia-e-cola para psicólogos autônomos, mediante assinatura mensal de R$ 79,00, com 7 dias de teste gratuito.</p>
+                <h2>2. Assinatura e cancelamento</h2>
+                <p>A cobrança é mensal, via Asaas (Pix, cartão ou boleto). O cancelamento pode ser feito a qualquer momento pelo painel, sem multa. Após o cancelamento, a conta permanece em modo somente leitura para consulta e exportação dos registros.</p>
+                <p>Em caso de inadimplência, o acesso às funções de agenda é suspenso até a regularização; a exportação dos dados continua disponível.</p>
+                <h2>3. Responsabilidades do profissional</h2>
+                <p>O psicólogo é responsável pelo conteúdo que cadastra, pela base legal para tratar os dados dos seus pacientes e pelo cumprimento do Código de Ética e das Resoluções do CFP, incluindo a Resolução CFP 11/2018 para atendimentos online.</p>
+                <h2>4. Disponibilidade</h2>
+                <p>Empregamos esforços razoáveis para manter o serviço disponível, com backups diários criptografados. Mensagens de WhatsApp dependem da disponibilidade da Meta.</p>
+                break;
+
+            case "privacidade":
+                <h2>Papéis</h2>
+                <p>Em relação aos dados dos pacientes, o psicólogo é o <b>controlador</b> e o Alento é o <b>operador</b> (LGPD, art. 5º). Em relação aos dados de cadastro do psicólogo, o Alento é controlador.</p>
+                <h2>Quais dados tratamos</h2>
+                <p>Do psicólogo: nome, e-mail, CRP, WhatsApp, chave Pix e dados de cobrança. Do paciente: nome, WhatsApp, e-mail (opcional), horários de sessão, status de presença e de pagamento. <b>Não</b> armazenamos prontuário ou conteúdo clínico nesta versão.</p>
+                <h2>Dado sensível</h2>
+                <p>Como a simples informação de que alguém faz acompanhamento psicológico é dado de saúde (LGPD, art. 11), toda a agenda é tratada como sensível: conexão HTTPS, isolamento por profissional, registro de acessos e mensagens mínimas (sem a palavra "terapia" nem detalhes clínicos).</p>
+                <h2>Consentimento para mensagens</h2>
+                <p>O paciente consente em receber lembretes ao agendar pelo link público; nos cadastros feitos pelo profissional, o consentimento é registrado por ele.</p>
+                <h2>Direitos do titular</h2>
+                <p>O profissional pode exportar ou excluir os dados de qualquer paciente pelo painel. Pedidos de titulares podem ser enviados ao profissional responsável ou ao nosso encarregado: privacidade@@alento.app.br.</p>
+                <h2>Retenção</h2>
+                <p>A Resolução CFP 001/2009 exige a guarda do registro documental por no mínimo 5 anos. Por isso, o cancelamento da assinatura não apaga os dados imediatamente: a conta fica disponível para leitura e exportação.</p>
+                <h2>Suboperadores</h2>
+                <p>Meta (WhatsApp Cloud API), Asaas (cobrança da assinatura), provedor de e-mail transacional e provedor de infraestrutura (servidor e backups criptografados).</p>
+                break;
+
+            default:
+                <h2>Contrato de operador de dados (DPA)</h2>
+                <p>Ao criar a conta, o profissional (controlador) contrata o Alento (operador) para tratar dados pessoais de pacientes exclusivamente para: agendamento, envio de lembretes, registro de presença e geração de cobranças.</p>
+                <h2>Obrigações do operador</h2>
+                <ul>
+                    <li>Tratar os dados apenas conforme as instruções do controlador e esta finalidade.</li>
+                    <li>Manter medidas de segurança técnicas e administrativas: criptografia em trânsito, backups criptografados, controle de acesso e registro de auditoria.</li>
+                    <li>Garantir confidencialidade das pessoas autorizadas a tratar os dados.</li>
+                    <li>Comunicar ao controlador, em prazo razoável, qualquer incidente de segurança relevante.</li>
+                    <li>Auxiliar o controlador no atendimento aos direitos dos titulares (exportação e exclusão pelo painel).</li>
+                    <li>Ao término do contrato, manter os dados disponíveis para exportação pelo prazo de guarda exigido e, depois, eliminá-los.</li>
+                </ul>
+                <h2>Suboperadores</h2>
+                <p>Os listados na Política de Privacidade. Alterações relevantes serão comunicadas com antecedência.</p>
+                break;
+        }
+    </div>
+</main>
+
+@code {
+    private string Pagina => Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].ToLowerInvariant();
+
+    private string Titulo => Pagina switch
+    {
+        "termos" => "Termos de uso",
+        "privacidade" => "Privacidade e LGPD",
+        _ => "Contrato de operador (DPA)"
+    };
+}

@@ -1,0 +1,244 @@
+@page "/{Slug}"
+@attribute [ExcludeFromInteractiveRouting]
+@layout SiteLayout
+@using Alento.Web.Modules.Agenda
+@using Alento.Web.Modules.Contas
+@inject AgendamentoPublicoService Publico
+@inject NavigationManager Nav
+
+@if (pagina is not null)
+{
+    <PageTitle>Agendar com @pagina.Tenant.Nome</PageTitle>
+    <HeadContent>
+        <meta name="description" content="Escolha um horário livre e agende sua sessão com @pagina.Tenant.Nome." />
+        <meta property="og:title" content="Agende com @pagina.Tenant.Nome" />
+    </HeadContent>
+
+    <div class="pub">
+        <div class="pub-topo">
+            <div class="container">
+                <div class="pub-perfil">
+                    <div class="pub-avatar">@Iniciais(pagina.Tenant.Nome)</div>
+                    <div>
+                        <h1>@pagina.Tenant.Nome</h1>
+                        <div class="crp">Psicólogo(a)@(string.IsNullOrWhiteSpace(pagina.Tenant.Crp) ? "" : $" · CRP {pagina.Tenant.Crp}")</div>
+                    </div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(pagina.Tenant.Bio))
+                {
+                    <p class="bio">@pagina.Tenant.Bio</p>
+                }
+            </div>
+        </div>
+
+        <div class="pub-corpo">
+            @if (!pagina.Ativa)
+            {
+                <div class="cartao">
+                    <div class="alerta info">No momento, a agenda online deste profissional está pausada.</div>
+                    @if (!string.IsNullOrWhiteSpace(pagina.Tenant.WhatsApp))
+                    {
+                        <a class="btn-cta bloco" href="https://wa.me/@pagina.Tenant.WhatsApp">Falar pelo WhatsApp</a>
+                    }
+                </div>
+            }
+            else if (pagina.Servicos.Count == 0)
+            {
+                <div class="cartao"><p class="vazio-msg">Nenhum horário disponível para agendamento online.</p></div>
+            }
+            else
+            {
+                @if (pagina.Servicos.Count > 1)
+                {
+                    <div class="cartao">
+                        <h2><span class="passo-num">1</span>Tipo de sessão</h2>
+                        <div class="servicos">
+                            @foreach (var s in pagina.Servicos)
+                            {
+                                <a class="servico @(s.Id == servico?.Id ? "ativo" : "")" href="@Url(servicoId: s.Id)">
+                                    <div>
+                                        <b>@s.Nome</b>
+                                        <small>@s.DuracaoMinutos min · @(s.Modalidade == Modalidade.Online ? "Online" : "Presencial")</small>
+                                    </div>
+                                    @if (s.Valor > 0)
+                                    {
+                                        <span class="preco">@Texto.Moeda(s.Valor)</span>
+                                    }
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (escolhido is null && erros.Count > 0)
+                {
+                    <div class="alerta erro">@erros[0]</div>
+                }
+                <div class="cartao">
+                    <h2><span class="passo-num">@(pagina.Servicos.Count > 1 ? 2 : 1)</span>Escolha dia e horário</h2>
+                    @if (porDia.Count == 0)
+                    {
+                        <p class="vazio-msg">Sem horários livres nos próximos dias. Tente novamente mais tarde.</p>
+                    }
+                    else
+                    {
+                        <div class="dias">
+                            @foreach (var d in porDia.Keys)
+                            {
+                                <a class="dia @(d == dia ? "ativo" : "")" href="@Url(dia: d)">
+                                    <small>@Fuso.DiaSemanaCurto(d.DayOfWeek)</small>
+                                    <b>@d.Day</b>
+                                    <small>@d.ToString("MMM", Fuso.PtBr).TrimEnd('.')</small>
+                                </a>
+                            }
+                        </div>
+                        <div class="horarios">
+                            @foreach (var h in porDia.GetValueOrDefault(dia) ?? [])
+                            {
+                                <a class="horario @(h.InicioUtc == escolhido?.InicioUtc ? "ativo" : "")" href="@Url(horario: h.InicioUtc)#confirmar">@h.InicioLocal.ToString("HH:mm")</a>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (escolhido is { } e && servico is not null)
+                {
+                    <div class="cartao" id="confirmar">
+                        <h2><span class="passo-num">@(pagina.Servicos.Count > 1 ? 3 : 2)</span>Seus dados</h2>
+                        <div class="resumo-escolha">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                            <div>
+                                <b>@e.InicioLocal.ToString("dddd, dd 'de' MMMM", Fuso.PtBr)</b><br />
+                                @e.InicioLocal.ToString("HH:mm") às @e.InicioLocal.AddMinutes(servico.DuracaoMinutos).ToString("HH:mm") · @servico.Nome
+                            </div>
+                        </div>
+
+                        @if (erros.Count > 0)
+                        {
+                            <div class="alerta erro">
+                                @foreach (var er in erros)
+                                {
+                                    <div>@er</div>
+                                }
+                            </div>
+                        }
+
+                        <EditForm Model="Reserva" FormName="reserva" OnSubmit="Reservar" method="post">
+                            <div class="campo">
+                                <label for="nome">Nome completo</label>
+                                <InputText id="nome" @bind-Value="Reserva!.Nome" autocomplete="name" required />
+                            </div>
+                            <div class="campo">
+                                <label for="whats">WhatsApp com DDD</label>
+                                <InputText id="whats" type="tel" @bind-Value="Reserva!.WhatsApp" autocomplete="tel" inputmode="tel" placeholder="(11) 91234-5678" required />
+                                <div class="ajuda">Você recebe aqui o lembrete para confirmar a sessão.</div>
+                            </div>
+                            <div class="campo">
+                                <label for="email">E-mail <span style="font-weight:400;color:var(--suave)">(opcional)</span></label>
+                                <InputText id="email" type="email" @bind-Value="Reserva!.Email" autocomplete="email" />
+                            </div>
+                            <label class="check">
+                                <InputCheckbox @bind-Value="Reserva!.Consentimento" />
+                                <span>Aceito receber lembretes desta sessão pelo WhatsApp e concordo com a <a href="/privacidade" target="_blank">política de privacidade</a>.</span>
+                            </label>
+                            <button type="submit" class="btn-cta bloco grande">Confirmar agendamento</button>
+                        </EditForm>
+                    </div>
+                }
+            }
+            <p class="pub-rodape">Agenda online por <a href="/?utm_source=link_publico&utm_medium=rodape">Alento</a></p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "servico")] public string? ServicoQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "dia")] public string? DiaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "h")] public string? HorarioQuery { get; set; }
+    private Guid? ServicoId => Guid.TryParse(ServicoQuery, out var g) ? g : null;
+    private long? HorarioTicks => long.TryParse(HorarioQuery, out var t) ? t : null;
+    [SupplyParameterFromForm(FormName = "reserva")] private FormReserva? Reserva { get; set; }
+
+    private PaginaPublica? pagina;
+    private Servico? servico;
+    private SortedDictionary<DateOnly, List<HorarioLivre>> porDia = [];
+    private DateOnly dia;
+    private HorarioLivre? escolhido;
+    private readonly List<string> erros = [];
+
+    public sealed class FormReserva
+    {
+        public string Nome { get; set; } = "";
+        public string WhatsApp { get; set; } = "";
+        public string? Email { get; set; }
+        public bool Consentimento { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Reserva ??= new();
+        pagina = await Publico.PaginaAsync(Slug);
+        if (pagina is null)
+        {
+            Nav.NotFound();
+            return;
+        }
+        if (!pagina.Ativa || pagina.Servicos.Count == 0) return;
+
+        servico = pagina.Servicos.FirstOrDefault(s => s.Id == ServicoId) ?? pagina.Servicos[0];
+        var livres = await Publico.HorariosAsync(pagina.Tenant, servico.Id);
+        porDia = new(livres.GroupBy(h => DateOnly.FromDateTime(h.InicioLocal)).ToDictionary(g => g.Key, g => g.ToList()));
+
+        dia = DateOnly.TryParse(DiaQuery, out var d) && porDia.ContainsKey(d) ? d : porDia.Keys.FirstOrDefault();
+        if (HorarioTicks is { } t)
+        {
+            escolhido = livres.FirstOrDefault(h => h.InicioUtc.Ticks == t);
+            if (escolhido is { } e) dia = DateOnly.FromDateTime(e.InicioLocal);
+            else erros.Add("Esse horário não está mais disponível. Escolha outro.");
+        }
+    }
+
+    private async Task Reservar()
+    {
+        if (pagina is null || servico is null || escolhido is null) return;
+        string token;
+        try
+        {
+            token = await Publico.ReservarAsync(pagina.Tenant, new ReservaPublica
+            {
+                ServicoId = servico.Id,
+                InicioUtc = escolhido.Value.InicioUtc,
+                Nome = Reserva!.Nome,
+                WhatsApp = Reserva.WhatsApp,
+                Email = Reserva.Email,
+                Consentimento = Reserva.Consentimento
+            });
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            erros.AddRange(ex.Errors.Select(e => e.ErrorMessage).Distinct());
+            return;
+        }
+        catch (RegraNegocioException ex)
+        {
+            erros.Add(ex.Message);
+            return;
+        }
+        Nav.NavigateTo($"/s/{token}?novo=true");
+    }
+
+    private string Url(Guid? servicoId = null, DateOnly? dia = null, DateTime? horario = null)
+    {
+        var q = new Dictionary<string, object?>
+        {
+            ["servico"] = (servicoId ?? servico?.Id)?.ToString(),
+            ["dia"] = servicoId is null ? (dia ?? this.dia).ToString("yyyy-MM-dd") : null,
+            ["h"] = horario?.Ticks
+        };
+        return Nav.GetUriWithQueryParameters($"/{Slug}", q);
+    }
+
+    private static string Iniciais(string nome) =>
+        string.Concat(nome.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => p.Length > 2).Take(2).Select(p => char.ToUpper(p[0])));
+}

@@ -1,0 +1,202 @@
+@page "/Account/Register"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using Alento.Web.Modules.Contas
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject RegistroService Registro
+@inject ILogger<Register> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Criar conta grátis · Alento</PageTitle>
+
+<div class="conta-split">
+    <aside class="conta-beneficios">
+        <span class="sobretitulo">7 dias grátis · sem cartão</span>
+        <h2>Em 2 minutos sua agenda está no ar.</h2>
+        <ul class="lista-check">
+            <li>Link de agendamento pronto para a bio do Instagram</li>
+            <li>Lembretes no WhatsApp com botão de confirmar</li>
+            <li>Pix com a sua chave para cada sessão</li>
+            <li>Horários de atendimento já pré-configurados</li>
+        </ul>
+        <div class="conta-garantia">
+            <b>Sem compromisso.</b> Se não gostar, não assine: nada é cobrado. Depois, R$ 79/mês e cancele quando quiser.
+        </div>
+    </aside>
+
+    <section class="conta-cartao">
+        <h1>Crie sua conta grátis</h1>
+        <p class="conta-sub">Já tem conta? <a href="@LinkLogin">Entrar</a></p>
+
+        @if (erros.Count > 0)
+        {
+            <div class="alerta erro" role="alert">
+                @foreach (var e in erros)
+                {
+                    <div>@e</div>
+                }
+            </div>
+        }
+
+        <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+            <DataAnnotationsValidator />
+            <div class="campo">
+                <label for="nome">Seu nome profissional</label>
+                <InputText id="nome" @bind-Value="Input.Nome" autocomplete="name" placeholder="Ex.: Ana Souza" />
+                <ValidationMessage For="() => Input.Nome" />
+                <div class="ajuda">É o nome que seus pacientes veem no link e no lembrete.</div>
+            </div>
+            <div class="campo-duplo">
+                <div class="campo">
+                    <label for="crp">CRP <span class="opcional">(opcional)</span></label>
+                    <InputText id="crp" @bind-Value="Input.Crp" placeholder="06/123456" />
+                </div>
+                <div class="campo">
+                    <label for="whats">WhatsApp</label>
+                    <InputText id="whats" type="tel" inputmode="tel" @bind-Value="Input.WhatsApp" autocomplete="tel" placeholder="(11) 91234-5678" />
+                    <ValidationMessage For="() => Input.WhatsApp" />
+                </div>
+            </div>
+            <div class="campo">
+                <label for="email">E-mail</label>
+                <InputText id="email" type="email" @bind-Value="Input.Email" autocomplete="username" placeholder="voce@exemplo.com" />
+                <ValidationMessage For="() => Input.Email" />
+            </div>
+            <div class="campo">
+                <label for="senha">Crie uma senha</label>
+                <InputText id="senha" type="password" @bind-Value="Input.Password" autocomplete="new-password" placeholder="Mínimo 8 caracteres, com número" />
+                <ValidationMessage For="() => Input.Password" />
+            </div>
+            <label class="check">
+                <InputCheckbox @bind-Value="Input.AceiteTermos" />
+                <span>Li e aceito os <a href="/termos" target="_blank">Termos de uso</a>, a <a href="/privacidade" target="_blank">Política de privacidade</a> e o <a href="/dpa" target="_blank">Contrato de operador de dados (DPA)</a>.</span>
+            </label>
+            <ValidationMessage For="() => Input.AceiteTermos" />
+            <button type="submit" class="btn-cta bloco grande">Criar minha agenda grátis →</button>
+            <p class="conta-rodape-form">🔒 Seus dados e os dos seus pacientes ficam protegidos e isolados.</p>
+        </EditForm>
+    </section>
+</div>
+
+@code {
+    private readonly List<string> erros = [];
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "origem")]
+    private string? Origem { get; set; }
+
+    [SupplyParameterFromQuery(Name = "utm_source")]
+    private string? UtmSource { get; set; }
+
+    [SupplyParameterFromQuery(Name = "utm_campaign")]
+    private string? UtmCampaign { get; set; }
+
+    private string LinkLogin => NavigationManager.GetUriWithQueryParameters("Account/Login", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl });
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+    }
+
+    public async Task RegisterUser(EditContext editContext)
+    {
+        if (await UserManager.FindByEmailAsync(Input.Email) is not null)
+        {
+            erros.Add("Já existe uma conta com esse e-mail. Que tal entrar?");
+            return;
+        }
+
+        var validacaoSenha = await ValidarSenhaAsync();
+        if (validacaoSenha.Count > 0)
+        {
+            erros.AddRange(validacaoSenha);
+            return;
+        }
+
+        var origem = string.Join(" | ", new[] { UtmSource, UtmCampaign, Origem }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        var tenant = await Registro.CriarTenantAsync(Input.Nome, Input.Crp, Input.WhatsApp, origem);
+
+        var user = new ApplicationUser { TenantId = tenant.Id, Nome = Input.Nome.Trim() };
+        await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+        await ((IUserEmailStore<ApplicationUser>)UserStore).SetEmailAsync(user, Input.Email, CancellationToken.None);
+        var result = await UserManager.CreateAsync(user, Input.Password);
+
+        if (!result.Succeeded)
+        {
+            await Registro.DescartarTenantAsync(tenant.Id);
+            erros.AddRange(result.Errors.Select(e => e.Description));
+            return;
+        }
+
+        Logger.LogInformation("Novo psicólogo cadastrado: tenant {Tenant}, origem {Origem}", tenant.Id, origem);
+
+        try
+        {
+            var userId = await UserManager.GetUserIdAsync(user);
+            var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
+            code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+            var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+                NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
+                new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = "/app" });
+            await EmailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Falha ao enviar confirmação de e-mail");
+        }
+
+        // Entra direto no painel: tempo até o primeiro valor é o que mais converte teste em assinatura.
+        await SignInManager.SignInAsync(user, isPersistent: true);
+        RedirectManager.RedirectTo("app?bemvindo=true");
+    }
+
+    private async Task<List<string>> ValidarSenhaAsync()
+    {
+        var msgs = new List<string>();
+        foreach (var v in UserManager.PasswordValidators)
+        {
+            var r = await v.ValidateAsync(UserManager, new ApplicationUser(), Input.Password);
+            if (!r.Succeeded) msgs.AddRange(r.Errors.Select(e => e.Description));
+        }
+        return msgs;
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "Informe seu nome.")]
+        [StringLength(120, MinimumLength = 3, ErrorMessage = "Informe seu nome completo.")]
+        public string Nome { get; set; } = "";
+
+        [StringLength(20)]
+        public string? Crp { get; set; }
+
+        [Required(ErrorMessage = "Informe seu WhatsApp.")]
+        [RegularExpression(@"^[\d\s\(\)\-\+]{10,20}$", ErrorMessage = "WhatsApp inválido. Use DDD + número.")]
+        public string WhatsApp { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe seu e-mail.")]
+        [EmailAddress(ErrorMessage = "E-mail inválido.")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Crie uma senha.")]
+        [StringLength(100, MinimumLength = 8, ErrorMessage = "A senha precisa ter pelo menos 8 caracteres.")]
+        public string Password { get; set; } = "";
+
+        [Range(typeof(bool), "true", "true", ErrorMessage = "É preciso aceitar os termos para continuar.")]
+        public bool AceiteTermos { get; set; }
+    }
+}

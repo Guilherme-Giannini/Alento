@@ -1,0 +1,15 @@
+@inherits LayoutComponentBase
+
+<div class="conta" data-enhance-nav="false">
+    <header class="conta-topo">
+        <a href="/" class="logo"><Logo /> Alento</a>
+        <AuthorizeView>
+            <Authorized>
+                <a href="/app" class="btn-link">← Voltar ao painel</a>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+    <main class="conta-corpo">
+        @Body
+    </main>
+</div>

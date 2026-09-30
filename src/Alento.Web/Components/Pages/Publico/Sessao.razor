@@ -1,0 +1,201 @@
+@page "/s/{Token}"
+@attribute [ExcludeFromInteractiveRouting]
+@layout SiteLayout
+@using Alento.Web.Modules.Agenda
+@using Alento.Web.Modules.Contas
+@inject AgendamentoPublicoService Publico
+@inject NavigationManager Nav
+
+<PageTitle>Sua sessão · Alento</PageTitle>
+<HeadContent><meta name="robots" content="noindex" /></HeadContent>
+
+@if (sessao is not null)
+{
+    var ag = sessao.Agendamento;
+    var tz = Fuso.Obter(sessao.Tenant.FusoHorario);
+    var inicio = Fuso.ParaLocal(ag.Inicio, tz);
+    var fim = Fuso.ParaLocal(ag.Fim, tz);
+    var ativa = ag.Status is StatusAgendamento.Agendado or StatusAgendamento.Confirmado && ag.Inicio > DateTime.UtcNow;
+
+    <div class="pub">
+        <div class="pub-topo">
+            <div class="container">
+                <div class="pub-perfil">
+                    <div class="pub-avatar">@sessao.Tenant.Nome[..1]</div>
+                    <div>
+                        <h1>Sessão com @sessao.Tenant.Nome</h1>
+                        <div class="crp">Olá, @Texto.PrimeiroNome(sessao.NomePaciente)!</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="pub-corpo">
+            @if (mensagem is not null)
+            {
+                <div class="alerta @(mensagemErro ? "erro" : "ok")">@mensagem</div>
+            }
+
+            <div class="cartao">
+                @if (Novo && ativa)
+                {
+                    <div class="sucesso">
+                        <div class="check-grande"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5" /></svg></div>
+                        <h2 style="text-align:center">Sessão agendada!</h2>
+                        <p style="color:var(--suave)">Você vai receber um lembrete no WhatsApp um dia antes para confirmar.</p>
+                    </div>
+                }
+
+                <div class="resumo-escolha">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+                    <div>
+                        <b>@inicio.ToString("dddd, dd 'de' MMMM", Fuso.PtBr)</b><br />
+                        @inicio.ToString("HH:mm") às @fim.ToString("HH:mm") · @sessao.Servico
+                    </div>
+                </div>
+                <p>
+                    Situação:
+                    <b>
+                        @(ag.Status switch
+                        {
+                            StatusAgendamento.Confirmado => "Confirmada ✅",
+                            StatusAgendamento.Cancelado => "Cancelada",
+                            StatusAgendamento.Realizado => "Realizada",
+                            StatusAgendamento.Faltou => "Não compareceu",
+                            _ => "Agendada (aguardando confirmação)"
+                        })
+                    </b>
+                </p>
+                @if (!string.IsNullOrWhiteSpace(ag.LinkVideo) && ativa)
+                {
+                    <p>Link da chamada: <a href="@ag.LinkVideo" target="_blank" rel="noopener">@ag.LinkVideo</a></p>
+                }
+
+                @if (ativa && !Remarcar)
+                {
+                    <div class="acoes-sessao">
+                        @if (ag.Status == StatusAgendamento.Agendado)
+                        {
+                            <form method="post" @formname="confirmar" @onsubmit="Confirmar">
+                                <AntiforgeryToken />
+                                <button class="btn-cta bloco" type="submit">✓ Confirmar presença</button>
+                            </form>
+                        }
+                        <a class="btn-sec" style="justify-content:center" href="@LinkGoogle(inicio, fim)" target="_blank" rel="noopener">+ Adicionar ao Google Agenda</a>
+                        <a class="btn-sec" style="justify-content:center" href="@($"/s/{Token}?remarcar=true")">↻ Remarcar</a>
+                        <form method="post" @formname="cancelar" @onsubmit="Cancelar">
+                            <AntiforgeryToken />
+                            <button class="btn-perigo" type="submit">Cancelar sessão</button>
+                        </form>
+                    </div>
+                }
+            </div>
+
+            @if (ativa && Remarcar)
+            {
+                <div class="cartao">
+                    <h2>Escolha o novo horário</h2>
+                    @if (porDia.Count == 0)
+                    {
+                        <p class="vazio-msg">Sem horários livres nos próximos dias. Fale diretamente com seu psicólogo.</p>
+                    }
+                    else
+                    {
+                        <div class="dias">
+                            @foreach (var d in porDia.Keys)
+                            {
+                                <a class="dia @(d == dia ? "ativo" : "")" href="@($"/s/{Token}?remarcar=true&dia={d:yyyy-MM-dd}")">
+                                    <small>@Fuso.DiaSemanaCurto(d.DayOfWeek)</small>
+                                    <b>@d.Day</b>
+                                    <small>@d.ToString("MMM", Fuso.PtBr).TrimEnd('.')</small>
+                                </a>
+                            }
+                        </div>
+                        <form method="post" @formname="remarcar" @onsubmit="ConfirmarRemarcacao">
+                            <AntiforgeryToken />
+                            <div class="horarios">
+                                @foreach (var h in porDia.GetValueOrDefault(dia) ?? [])
+                                {
+                                    <button type="submit" name="NovoHorario" value="@h.InicioUtc.Ticks" class="horario" style="cursor:pointer;font:inherit;font-weight:700">@h.InicioLocal.ToString("HH:mm")</button>
+                                }
+                            </div>
+                        </form>
+                    }
+                    <p style="margin-top:16px"><a href="/s/@Token">← Voltar</a></p>
+                </div>
+            }
+
+            <p class="pub-rodape">Agenda online por <a href="/?utm_source=sessao&utm_medium=rodape">Alento</a></p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "novo")] public string? NovoQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "remarcar")] public string? RemarcarQuery { get; set; }
+    private bool Novo => NovoQuery is "true" or "1";
+    private bool Remarcar => RemarcarQuery is "true" or "1";
+    [SupplyParameterFromQuery(Name = "dia")] public string? DiaQuery { get; set; }
+    [SupplyParameterFromForm(FormName = "remarcar")] public long? NovoHorario { get; set; }
+
+    private SessaoPublica? sessao;
+    private SortedDictionary<DateOnly, List<HorarioLivre>> porDia = [];
+    private DateOnly dia;
+    private string? mensagem;
+    private bool mensagemErro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Carregar();
+        if (sessao is null) return;
+        if (Remarcar)
+        {
+            var livres = await Publico.HorariosAsync(sessao.Tenant, sessao.Agendamento.ServicoId, sessao.Agendamento.Id);
+            porDia = new(livres.GroupBy(h => DateOnly.FromDateTime(h.InicioLocal)).ToDictionary(g => g.Key, g => g.ToList()));
+            dia = DateOnly.TryParse(DiaQuery, out var d) && porDia.ContainsKey(d) ? d : porDia.Keys.FirstOrDefault();
+        }
+    }
+
+    private async Task Carregar()
+    {
+        sessao = await Publico.SessaoAsync(Token);
+        if (sessao is null) Nav.NotFound();
+    }
+
+    private Task Confirmar() => Executar(() => Publico.ConfirmarAsync(Token), "Presença confirmada. Até lá!");
+
+    private Task Cancelar() => Executar(() => Publico.CancelarAsync(Token), "Sessão cancelada. Seu psicólogo foi avisado.");
+
+    private async Task ConfirmarRemarcacao()
+    {
+        if (NovoHorario is not { } ticks) return;
+        await Executar(() => Publico.RemarcarAsync(Token, new DateTime(ticks, DateTimeKind.Utc)), "Sessão remarcada e confirmada!");
+        if (!mensagemErro) Nav.NavigateTo($"/s/{Token}");
+    }
+
+    private async Task Executar(Func<Task> acao, string sucesso)
+    {
+        try
+        {
+            await acao();
+            mensagem = sucesso;
+            mensagemErro = false;
+        }
+        catch (RegraNegocioException ex)
+        {
+            mensagem = ex.Message;
+            mensagemErro = true;
+        }
+        await Carregar();
+    }
+
+    private string LinkGoogle(DateTime inicio, DateTime fim)
+    {
+        var tz = Fuso.Obter(sessao!.Tenant.FusoHorario);
+        string F(DateTime local) => Fuso.ParaUtc(local, tz).ToString("yyyyMMdd'T'HHmmss'Z'");
+        var texto = Uri.EscapeDataString($"Sessão com {sessao.Tenant.Nome}");
+        var detalhes = Uri.EscapeDataString(Nav.ToAbsoluteUri($"/s/{Token}").ToString());
+        return $"https://calendar.google.com/calendar/render?action=TEMPLATE&text={texto}&dates={F(inicio)}/{F(fim)}&details={detalhes}";
+    }
+}

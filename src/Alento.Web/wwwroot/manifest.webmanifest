@@ -1,0 +1,9 @@
+{
+  "name": "Alento · Agenda para psicólogos",
+  "short_name": "Alento",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#f8f5ef",
+  "theme_color": "#1f4d45",
+  "icons": [ { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" } ]
+}

@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/.vs
+**/.vscode
+**/*.user
+tests/
+.git
+.github
+deploy/backups
+*.md
+planejamento.txt

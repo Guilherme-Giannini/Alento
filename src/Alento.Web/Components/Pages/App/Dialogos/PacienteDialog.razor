@@ -1,0 +1,61 @@
+@using MudBlazor
+@using Alento.Web.Modules.Contas
+@using Alento.Web.Modules.Pacientes
+@inject PacienteService Pacientes
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="modelo.Nome" Label="Nome completo" Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="modelo.WhatsApp" Label="WhatsApp com DDD" Variant="Variant.Outlined" InputType="InputType.Telephone" Required="true" HelperText="Para onde vão os lembretes." />
+            <MudTextField @bind-Value="modelo.Email" Label="E-mail (opcional)" Variant="Variant.Outlined" InputType="InputType.Email" />
+            <MudNumericField T="decimal?" @bind-Value="modelo.ValorSessaoPersonalizado" Label="Valor da sessão para este paciente (opcional)" Variant="Variant.Outlined" Min="0" Format="N2" Culture="Fuso.PtBr" HelperText="Deixe vazio para usar o valor do serviço." Adornment="Adornment.Start" AdornmentText="R$" />
+            <MudTextField @bind-Value="modelo.Observacoes" Label="Observações administrativas" Variant="Variant.Outlined" Lines="2" MaxLength="500" HelperText="Não registre informações clínicas aqui." />
+            <MudCheckBox @bind-Value="modelo.ConsentimentoMensagens" Color="Color.Primary" Label="O paciente autorizou receber lembretes pelo WhatsApp (LGPD)" />
+            @if (Paciente is not null)
+            {
+                <MudSwitch @bind-Value="modelo.Ativo" Color="Color.Primary" Label="Paciente ativo" />
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" DropShadow="false" OnClick="Salvar" Disabled="salvando">Salvar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Paciente? Paciente { get; set; }
+
+    private Paciente modelo = new() { ConsentimentoMensagens = true, Ativo = true };
+    private bool salvando;
+
+    protected override void OnInitialized()
+    {
+        if (Paciente is not null)
+        {
+            modelo = new Paciente
+            {
+                Id = Paciente.Id, Nome = Paciente.Nome, WhatsApp = Texto.FormatarWhatsApp(Paciente.WhatsApp), Email = Paciente.Email,
+                ValorSessaoPersonalizado = Paciente.ValorSessaoPersonalizado, Observacoes = Paciente.Observacoes,
+                ConsentimentoMensagens = Paciente.ConsentimentoMensagens, Ativo = Paciente.Ativo
+            };
+        }
+    }
+
+    private async Task Salvar()
+    {
+        salvando = true;
+        try
+        {
+            var id = await Pacientes.SalvarAsync(modelo);
+            Snackbar.Add("Paciente salvo.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(id));
+        }
+        catch (RegraNegocioException ex) { Snackbar.Add(ex.Message, Severity.Warning); }
+        catch (FluentValidation.ValidationException ex) { Snackbar.Add(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct()), Severity.Warning); }
+        finally { salvando = false; }
+    }
+}

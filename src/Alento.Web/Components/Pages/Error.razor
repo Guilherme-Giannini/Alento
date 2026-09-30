@@ -1,0 +1,29 @@
+@page "/Error"
+@attribute [ExcludeFromInteractiveRouting]
+@layout SiteLayout
+@using System.Diagnostics
+
+<PageTitle>Erro · Alento</PageTitle>
+
+<main class="doc">
+    <div class="container estreito centro">
+        <a href="/" class="logo" style="justify-content:center;margin-bottom:24px"><Logo /> Alento</a>
+        <h1>Algo deu errado</h1>
+        <p class="lead" style="margin:0 auto 24px">Já fomos avisados. Tente de novo em instantes.</p>
+        @if (!string.IsNullOrEmpty(RequestId))
+        {
+            <p style="color:var(--suave);font-size:.85rem">Código: <code>@RequestId</code></p>
+        }
+        <a href="/" class="btn-cta">Voltar ao início</a>
+    </div>
+</main>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

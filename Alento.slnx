@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Alento.Web/Alento.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Alento.Tests/Alento.Tests.csproj" />
+  </Folder>
+</Solution>

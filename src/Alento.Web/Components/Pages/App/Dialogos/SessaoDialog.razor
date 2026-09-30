@@ -1,0 +1,206 @@
+@using MudBlazor
+@using Alento.Web.Modules.Agenda
+@using Alento.Web.Modules.Cobrancas
+@using Alento.Web.Modules.Contas
+@inject AgendaService Agenda
+@inject CobrancaService Cobrancas
+@inject IDialogService Dialogos
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @{ var ini = Conta.Local(Item.InicioUtc); var fim = Conta.Local(Item.FimUtc); }
+        <MudStack Spacing="2">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+                <div>
+                    <MudText Typo="Typo.h6">@ini.ToString("dddd, dd/MM", Fuso.PtBr)</MudText>
+                    <MudText Typo="Typo.body2" Style="color:var(--suave)">@ini.ToString("HH:mm")–@fim.ToString("HH:mm") · @Item.Servico · @Texto.Moeda(Item.Valor)</MudText>
+                </div>
+                <StatusSessao Status="Item.Status" />
+            </div>
+
+            <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Custom.Brands.WhatsApp" Href="@($"https://wa.me/{Item.WhatsApp}")" Target="_blank">@Texto.FormatarWhatsApp(Item.WhatsApp)</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Href="@($"/app/pacientes/{Item.PacienteId}")">Ver paciente</MudButton>
+                @if (Item.Recorrente)
+                {
+                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Outlined.Repeat">Semanal</MudChip>
+                }
+                @if (Item.CriadoPeloPaciente)
+                {
+                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Outlined.Link">Marcada pelo link</MudChip>
+                }
+            </MudStack>
+
+            @if (Item.StatusLembrete is { } sl)
+            {
+                <MudText Typo="Typo.body2">
+                    Lembrete WhatsApp: <b>@(sl switch { StatusMensagem.Lida => "lido ✓✓", StatusMensagem.Entregue => "entregue ✓✓", StatusMensagem.Enviada => "enviado ✓", StatusMensagem.Falhou => "falhou ⚠", _ => "pendente" })</b>
+                </MudText>
+            }
+
+            @if (Item.Modalidade == Modalidade.Online || !string.IsNullOrWhiteSpace(Item.LinkVideo))
+            {
+                <MudTextField @bind-Value="linkVideo" Label="Link da videochamada" Placeholder="https://" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Save" OnAdornmentClick="SalvarLink" Disabled="!Conta.PodeEditar" />
+            }
+
+            @if (Conta.PodeEditar)
+            {
+                <MudDivider Class="my-1" />
+                <MudText Typo="Typo.subtitle2">Como foi?</MudText>
+                <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                    @if (Item.Status == StatusAgendamento.Agendado)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" OnClick="() => Mudar(StatusAgendamento.Confirmado)">Confirmar</MudButton>
+                    }
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="() => Mudar(StatusAgendamento.Realizado)">Realizada</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="() => Mudar(StatusAgendamento.Faltou)">Faltou</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="MarcarFaltaCobrando">Faltou e cobrar</MudButton>
+                    @if (Item.Status != StatusAgendamento.Cancelado)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Default" OnClick="() => Mudar(StatusAgendamento.Cancelado)">Cancelar sessão</MudButton>
+                    }
+                </MudStack>
+
+                @if (Item.Status is StatusAgendamento.Agendado or StatusAgendamento.Confirmado)
+                {
+                    <MudExpansionPanels Elevation="0" Class="mt-1">
+                        <MudExpansionPanel Text="Remarcar">
+                            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                                <MudDatePicker @bind-Date="novaData" Label="Nova data" Variant="Variant.Outlined" Margin="Margin.Dense" Culture="Fuso.PtBr" DateFormat="dd/MM/yyyy" Style="max-width:170px" />
+                                <MudTimePicker @bind-Time="novaHora" Label="Horário" Variant="Variant.Outlined" Margin="Margin.Dense" AmPm="false" MinuteSelectionStep="5" Style="max-width:130px" />
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" DropShadow="false" OnClick="Remarcar">Remarcar</MudButton>
+                            </MudStack>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
+            }
+
+            <MudDivider Class="my-1" />
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+                <div>
+                    <MudText Typo="Typo.subtitle2">Pagamento</MudText>
+                    @if (Item.StatusCobranca is null)
+                    {
+                        <MudText Typo="Typo.body2" Style="color:var(--suave)">Gerada automaticamente quando a sessão é marcada como realizada.</MudText>
+                    }
+                    else
+                    {
+                        <StatusPagamento Status="Item.StatusCobranca" />
+                    }
+                </div>
+                <MudStack Row="true" Spacing="1">
+                    @if (Item.CobrancaId is { } cid)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCode2" OnClick="() => AbrirPix(cid)">Pix</MudButton>
+                        @if (Item.StatusCobranca == StatusCobranca.Pendente && Conta.PodeEditar)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" DropShadow="false" OnClick="() => MarcarPago(cid)">Marcar pago</MudButton>
+                        }
+                    }
+                    else if (Item.Valor > 0 && Conta.PodeEditar)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="GerarCobranca">Gerar cobrança</MudButton>
+                    }
+                </MudStack>
+            </div>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Fechar">Fechar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ItemAgenda Item { get; set; } = default!;
+    [Parameter] public Alento.Web.Components.Layout.ContaAtual Conta { get; set; } = default!;
+
+    private string? linkVideo;
+    private DateTime? novaData;
+    private TimeSpan? novaHora;
+    private bool alterou;
+
+    protected override void OnInitialized()
+    {
+        linkVideo = Item.LinkVideo;
+        var ini = Conta.Local(Item.InicioUtc);
+        novaData = ini.Date;
+        novaHora = ini.TimeOfDay;
+    }
+
+    private void Fechar()
+    {
+        if (alterou) MudDialog.Close(DialogResult.Ok(true));
+        else MudDialog.Cancel();
+    }
+
+    private async Task<bool> Tentar(Func<Task> acao, string ok)
+    {
+        try
+        {
+            await acao();
+            Snackbar.Add(ok, Severity.Success);
+            alterou = true;
+            return true;
+        }
+        catch (RegraNegocioException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+            return false;
+        }
+    }
+
+    private async Task Mudar(StatusAgendamento s)
+    {
+        if (await Tentar(() => Agenda.AlterarStatusAsync(Item.Id, s), $"Sessão marcada como {StatusSessao.Rotulo(s).TrimStart('✓', ' ').ToLower()}."))
+            MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task MarcarFaltaCobrando()
+    {
+        if (await Tentar(() => Agenda.AlterarStatusAsync(Item.Id, StatusAgendamento.Faltou, cobrarFalta: true), "Falta registrada e cobrança gerada."))
+            MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task Remarcar()
+    {
+        if (novaData is null || novaHora is null) return;
+        var local = novaData.Value.Date + novaHora.Value;
+        if (await Tentar(() => Agenda.RemarcarAsync(Item.Id, Conta.Utc(local)), "Sessão remarcada."))
+            MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private Task SalvarLink() => Tentar(() => Agenda.AtualizarLinkVideoAsync(Item.Id, linkVideo), "Link salvo.");
+
+    private async Task GerarCobranca()
+    {
+        Guid id = default;
+        if (await Tentar(async () => id = await Cobrancas.GerarParaAgendamentoAsync(Item.Id), "Cobrança gerada."))
+        {
+            Item = Item with { CobrancaId = id, StatusCobranca = StatusCobranca.Pendente };
+            await AbrirPix(id);
+        }
+    }
+
+    private async Task MarcarPago(Guid id)
+    {
+        if (await Tentar(() => Cobrancas.MarcarComoPagaAsync(id), "Pagamento registrado."))
+            Item = Item with { StatusCobranca = StatusCobranca.Paga };
+    }
+
+    private async Task AbrirPix(Guid cobrancaId)
+    {
+        await Dialogos.ShowAsync<PixDialog>("Cobrar por Pix",
+            new DialogParameters<PixDialog>
+            {
+                { x => x.CobrancaId, cobrancaId },
+                { x => x.NomePaciente, Item.Paciente },
+                { x => x.WhatsApp, Item.WhatsApp },
+                { x => x.SessaoLocal, Conta.Local(Item.InicioUtc) },
+                { x => x.NomePsicologo, Conta.Tenant.Nome }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true });
+    }
+}

@@ -1,0 +1,15 @@
+@inherits LayoutComponentBase
+@layout Alento.Web.Components.Layout.ContaLayout
+
+<div class="conta-cartao largo">
+    <h1>Sua conta</h1>
+    <p class="conta-sub">Segurança de acesso: senha, verificação em duas etapas e passkeys.</p>
+    <div class="row">
+        <div class="col-lg-3">
+            <ManageNavMenu />
+        </div>
+        <div class="col-lg-9">
+            @Body
+        </div>
+    </div>
+</div>
